@@ -1,0 +1,20 @@
+{
+  "name": "llm-wiki",
+  "interface": {
+    "displayName": "LLM Wiki"
+  },
+  "plugins": [
+    {
+      "name": "llm-wiki",
+      "source": {
+        "source": "local",
+        "path": "./plugins/llm-wiki"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
