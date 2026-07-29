@@ -1,8 +1,18 @@
-# LLM Wiki for Codex
+# LLM Wiki
 
-An installable Codex plugin for building persistent, source-backed Markdown knowledge bases.
+An installable plugin for building persistent, source-backed Markdown knowledge bases. It installs into both Codex and Claude Code from the same repository.
 
-LLM Wiki turns source material into a maintained, interlinked wiki instead of rediscovering the same knowledge from raw files for every question. The plugin packages a reusable Codex skill, standard-library Python helpers, safe lifecycle hooks, and a Git-backed marketplace entry. MCP is intentionally out of scope for the first release.
+LLM Wiki turns source material into a maintained, interlinked wiki instead of rediscovering the same knowledge from raw files for every question. The plugin packages a reusable skill, standard-library Python helpers, safe lifecycle hooks, and a Git-backed marketplace entry. MCP is intentionally out of scope for the first release.
+
+Both runtimes read `plugins/llm-wiki/` but different manifests, so neither install affects the other:
+
+| | Codex | Claude Code |
+|---|---|---|
+| marketplace manifest | `.agents/plugins/marketplace.json` | `.claude-plugin/marketplace.json` |
+| plugin manifest | `plugins/llm-wiki/.codex-plugin/plugin.json` | `plugins/llm-wiki/.claude-plugin/plugin.json` |
+| hook map | `hooks/hooks.json` (`${PLUGIN_ROOT}`) | `hooks/claude-hooks.json` (`${CLAUDE_PLUGIN_ROOT}`) |
+
+The skill, references, scripts, assets, and hook Python are shared verbatim.
 
 [한국어 안내](docs/README.ko.md)
 
@@ -27,18 +37,14 @@ The plugin is separate from the knowledge it manages. Upgrading the plugin never
 - A repo marketplace for installation from GitHub.
 - Unit tests and GitHub Actions validation.
 
-## Install from GitHub
-
-After this repository is published:
+## Install in Codex
 
 ```bash
 codex plugin marketplace add jiwonp7747/llm-wiki
 codex plugin add llm-wiki@llm-wiki
 ```
 
-Start a new Codex task after installation so the bundled skill and hooks are loaded. Open `/hooks` and review the two plugin hooks before trusting them.
-
-## Install from a local clone
+From a local clone:
 
 ```bash
 git clone https://github.com/jiwonp7747/llm-wiki.git
@@ -47,9 +53,39 @@ codex plugin marketplace add "$PWD"
 codex plugin add llm-wiki@llm-wiki
 ```
 
+Start a new Codex task after installation so the bundled skill and hooks are loaded. Open `/hooks` and review the two plugin hooks before trusting them.
+
+## Install in Claude Code
+
+```bash
+claude plugin marketplace add jiwonp7747/llm-wiki
+claude plugin install llm-wiki@llm-wiki
+```
+
+From a local clone, pass an absolute path or one starting with `./`. A bare `.` is rejected.
+
+```bash
+git clone https://github.com/jiwonp7747/llm-wiki.git
+claude plugin marketplace add "$PWD/llm-wiki"
+claude plugin install llm-wiki@llm-wiki
+```
+
+`/plugin` does the same thing in an interactive session. Start a new session afterwards, then confirm with:
+
+```bash
+claude plugin details llm-wiki@llm-wiki
+```
+
+Validate the manifests before publishing a change:
+
+```bash
+claude plugin validate --strict .
+claude plugin validate --strict plugins/llm-wiki
+```
+
 ## Use
 
-Invoke the skill explicitly or describe a matching task:
+Invoke the skill explicitly or describe a matching task. Codex uses `$llm-wiki`; Claude Code uses `/llm-wiki`.
 
 ```text
 Use $llm-wiki to initialize a knowledge base in this repository.

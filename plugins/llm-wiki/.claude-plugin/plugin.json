@@ -1,0 +1,20 @@
+{
+  "name": "llm-wiki",
+  "version": "0.1.0",
+  "description": "Build and maintain persistent Markdown knowledge bases from immutable sources.",
+  "author": {
+    "name": "jiwonp7747",
+    "email": "angry9908@gmail.com",
+    "url": "https://github.com/jiwonp7747"
+  },
+  "homepage": "https://github.com/jiwonp7747/llm-wiki",
+  "repository": "https://github.com/jiwonp7747/llm-wiki",
+  "license": "MIT",
+  "keywords": [
+    "llm",
+    "wiki",
+    "knowledge-base",
+    "markdown"
+  ],
+  "hooks": "./hooks/claude-hooks.json"
+}

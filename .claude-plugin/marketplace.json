@@ -1,0 +1,24 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "llm-wiki",
+  "description": "Build and maintain persistent Markdown knowledge bases from immutable sources.",
+  "owner": {
+    "name": "jiwonp7747",
+    "url": "https://github.com/jiwonp7747"
+  },
+  "plugins": [
+    {
+      "name": "llm-wiki",
+      "description": "Initialize and maintain a persistent, source-backed Markdown wiki with repeatable ingest, query, indexing, logging, and lint workflows.",
+      "version": "0.1.0",
+      "author": {
+        "name": "jiwonp7747",
+        "url": "https://github.com/jiwonp7747"
+      },
+      "homepage": "https://github.com/jiwonp7747/llm-wiki",
+      "license": "MIT",
+      "category": "productivity",
+      "source": "./plugins/llm-wiki"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run non-blocking structural validation before a Codex turn stops."""
+"""Run non-blocking structural validation before a turn stops."""
 
 from __future__ import annotations
 
@@ -37,7 +37,8 @@ def main() -> int:
     if knowledge is None:
         return emit()
 
-    plugin_root = Path(os.environ.get("PLUGIN_ROOT") or Path(__file__).resolve().parent.parent)
+    env_root = os.environ.get("PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    plugin_root = Path(env_root or Path(__file__).resolve().parent.parent)
     validator = plugin_root / "skills" / "llm-wiki" / "scripts" / "validate_wiki.py"
     if not validator.is_file():
         return emit(f"LLM Wiki hook could not find validator: {validator}")
@@ -63,7 +64,7 @@ def main() -> int:
         summary = "; ".join(str(item) for item in errors[:3])
         return emit(
             f"LLM Wiki structural validation found {len(errors)} error(s). "
-            f"Run $llm-wiki lint. First issues: {summary}"
+            f"Run the llm-wiki skill lint workflow. First issues: {summary}"
         )
     if warnings:
         return emit(
