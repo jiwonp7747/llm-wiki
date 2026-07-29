@@ -1,6 +1,14 @@
-# LLM Wiki for Codex
+# LLM Wiki
 
-원본을 매번 다시 검색하는 대신, LLM이 지속적으로 갱신하는 Markdown 지식베이스를 만들기 위한 Codex plugin입니다.
+원본을 매번 다시 검색하는 대신, LLM이 지속적으로 갱신하는 Markdown 지식베이스를 만들기 위한 plugin입니다. 하나의 저장소로 Codex와 Claude Code 양쪽에 설치됩니다.
+
+두 런타임은 `plugins/llm-wiki/`를 공유하되 서로 다른 manifest를 읽으므로, 한쪽 설치가 다른 쪽에 영향을 주지 않습니다.
+
+| | Codex | Claude Code |
+|---|---|---|
+| marketplace manifest | `.agents/plugins/marketplace.json` | `.claude-plugin/marketplace.json` |
+| plugin manifest | `plugins/llm-wiki/.codex-plugin/plugin.json` | `plugins/llm-wiki/.claude-plugin/plugin.json` |
+| hook map | `hooks/hooks.json` (`${PLUGIN_ROOT}`) | `hooks/claude-hooks.json` (`${CLAUDE_PLUGIN_ROOT}`) |
 
 ## 구성
 
@@ -12,9 +20,7 @@
 
 사용자의 모든 발언을 source로 저장하지 않습니다. 보존 가치가 있는 메모만 출처와 함께 등록하고 `unverified`로 취급합니다. 질문은 `wiki/questions/`에 저장합니다.
 
-## GitHub 설치
-
-저장소를 GitHub에 공개한 뒤 다음과 같이 설치합니다.
+## Codex 설치
 
 ```bash
 codex plugin marketplace add jiwonp7747/llm-wiki
@@ -23,7 +29,18 @@ codex plugin add llm-wiki@llm-wiki
 
 설치 후 새 Codex task를 시작하고 `/hooks`에서 plugin hook 두 개를 검토하고 신뢰 처리합니다.
 
+## Claude Code 설치
+
+```bash
+claude plugin marketplace add jiwonp7747/llm-wiki
+claude plugin install llm-wiki@llm-wiki
+```
+
+로컬 클론으로 설치할 때는 절대 경로이거나 `./`로 시작하는 경로를 넘깁니다. `.` 하나만 넘기면 거부됩니다. 설치 후 새 세션을 시작하고 `claude plugin details llm-wiki@llm-wiki`로 확인합니다.
+
 ## 사용 예시
+
+Codex는 `$llm-wiki`, Claude Code는 `/llm-wiki`로 호출합니다.
 
 ```text
 $llm-wiki로 이 프로젝트에 지식베이스를 초기화해줘.
@@ -34,7 +51,7 @@ $llm-wiki로 위키의 모순과 오래된 내용을 검사해줘.
 
 ## Hook
 
-- `SessionStart`: 프로젝트에 `knowledge/SCHEMA.md`가 있을 때만 관리 규칙을 Codex 컨텍스트에 추가합니다.
+- `SessionStart`: 프로젝트에 `knowledge/SCHEMA.md`가 있을 때만 관리 규칙을 세션 컨텍스트에 추가합니다.
 - `Stop`: 구조 검증을 실행하고 문제를 알립니다. 파일을 수정하거나 작업을 강제로 계속하지 않습니다.
 
 ## MCP를 포함하지 않은 이유

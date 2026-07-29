@@ -1,6 +1,6 @@
 ---
 name: llm-wiki
-description: Initialize and maintain a persistent, source-backed Markdown wiki using immutable sources, LLM-authored knowledge pages, and append-only operational metadata. Use when Codex needs to create an LLM wiki, ingest a document or user note, update linked concepts and components, answer from the wiki, rebuild its index, record an operation, or lint the knowledge base for schema, link, provenance, contradiction, staleness, and orphan issues.
+description: Initialize and maintain a persistent, source-backed Markdown wiki using immutable sources, LLM-authored knowledge pages, and append-only operational metadata. Use when the user needs to create an LLM wiki, ingest a document or user note, update linked concepts and components, answer from the wiki, rebuild its index, record an operation, or lint the knowledge base for schema, link, provenance, contradiction, staleness, and orphan issues.
 ---
 
 # LLM Wiki

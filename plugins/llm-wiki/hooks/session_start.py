@@ -30,7 +30,7 @@ def main() -> int:
         return 0
     context = (
         f"This project has an LLM Wiki at {knowledge}. Read {knowledge / 'SCHEMA.md'} "
-        "before changing it. Use the $llm-wiki workflow for ingest, query, index, log, "
+        "before changing it. Use the llm-wiki skill for ingest, query, index, log, "
         "and lint operations. Preserve sources as immutable evidence."
     )
     print(
