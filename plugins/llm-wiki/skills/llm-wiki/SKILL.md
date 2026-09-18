@@ -17,7 +17,7 @@ Use `<git-root>/knowledge` when a Git root exists; otherwise use `<cwd>/knowledg
 
 - **Initialize**: Run `scripts/init_wiki.py`, inspect the generated schema, then validate.
 - **Ingest**: Run `scripts/intake_source.py` first. Read the new source and existing `wiki/index.md`; update the source note and all affected canonical pages; rebuild the index; record the source as ingested; validate.
-- **Query**: Route through `wiki/index.md`, verify claims against source notes or immutable originals, answer with page/source references, and save durable synthesis only when requested or clearly useful.
+- **Query**: Prefer the read-only `wiki_info`, `wiki_list`, `wiki_search`, `wiki_read`, and `wiki_sources` MCP tools when available. Read `references/mcp.md` for paging, source access, and usage accounting. Use a consistent task label; never claim shell fallback reads were counted. Route through `wiki/index.md`, verify claims against source notes or immutable originals, answer with page/source references, and save durable synthesis only when requested or clearly useful.
 - **Lint**: Run `scripts/validate_wiki.py` and `scripts/build_index.py --check` first, then inspect semantic contradictions, stale claims, duplicate concepts, missing cross-links, and coverage gaps.
 - **Log**: Use `scripts/append_log.py` for query, lint, and maintenance events. Intake and source-status scripts log automatically.
 

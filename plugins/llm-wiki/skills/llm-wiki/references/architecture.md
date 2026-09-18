@@ -26,3 +26,7 @@ The plugin is a fourth, external execution layer. Its skill describes judgment a
 - Keep source registration deterministic; keep synthesis semantic.
 - Make hooks advisory and non-blocking by default.
 - Treat contradictions and deletion as review boundaries, not automation targets.
+
+## Read-only MCP boundary
+
+The MCP server exposes bounded typed reads over the same Markdown files. It reuses frontmatter and hashing helpers, keeps evidence immutable, and records result metadata in a local SQLite database outside the wiki. Search exposure, listing, and body reads are separate measures. Semantic synthesis and wiki mutations stay in the skill and existing scripts. The optional MCP runtime adds the official Python SDK and a timeout-capable regex engine; script-only workflows remain dependency-free.

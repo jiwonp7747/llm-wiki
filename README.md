@@ -2,7 +2,7 @@
 
 An installable plugin for building persistent, source-backed Markdown knowledge bases. It installs into both Codex and Claude Code from the same repository.
 
-LLM Wiki turns source material into a maintained, interlinked wiki instead of rediscovering the same knowledge from raw files for every question. The plugin packages a reusable skill, standard-library Python helpers, safe lifecycle hooks, and a Git-backed marketplace entry. MCP is intentionally out of scope for the first release.
+LLM Wiki turns source material into a maintained, interlinked wiki instead of rediscovering the same knowledge from raw files for every question. The plugin packages a reusable skill, standard-library Python helpers, safe lifecycle hooks, and a Git-backed marketplace entry. A read-only stdio MCP server adds typed wiki navigation and local access accounting.
 
 Both runtimes read `plugins/llm-wiki/` but different manifests, so neither install affects the other:
 
@@ -35,6 +35,7 @@ The plugin is separate from the knowledge it manages. Upgrading the plugin never
 - `SessionStart` context injection when an initialized wiki is present.
 - Non-blocking `Stop` validation that reports structural problems without editing files.
 - A repo marketplace for installation from GitHub.
+- Read-only MCP tools for info, listing, search, text reading, source resolution and usage reports.
 - Unit tests and GitHub Actions validation.
 
 ## Install in Codex
@@ -160,8 +161,17 @@ python3 ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py \
 
 ## Status
 
-Version `0.1.0` is a file-based local-first implementation. Search uses the generated index and normal repository tools. An MCP server should be considered only after real usage shows a need for typed cross-client tools or remote/shared storage.
+Wiki storage remains local Markdown and Git. The optional MCP server provides consistent read tools across Codex and Claude Code and records MCP usage separately from wiki content. It requires `uv` and Python 3.10+. See [MCP setup, limits and accounting](plugins/llm-wiki/skills/llm-wiki/references/mcp.md). Shell fallback reads are not counted.
 
 ## License
 
 MIT
+
+## MCP development checks
+
+```bash
+uv sync --frozen --project plugins/llm-wiki
+uv run --frozen --project plugins/llm-wiki python -m unittest discover -s tests -v
+```
+
+The test suite includes an actual stdio initialize/list/call exchange. For manual use, [examples/mcp_query.py](examples/mcp_query.py) accepts JSON tool calls on stdin and prints MCP results. Pass `[]` to list tools. The existing standard-library-only tests can still run without the MCP environment; MCP tests are explicitly skipped there, so that run alone is not MCP verification.

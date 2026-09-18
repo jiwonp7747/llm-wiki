@@ -31,7 +31,9 @@ def main() -> int:
     context = (
         f"This project has an LLM Wiki at {knowledge}. Read {knowledge / 'SCHEMA.md'} "
         "before changing it. Use the llm-wiki skill for ingest, query, index, log, "
-        "and lint operations. Preserve sources as immutable evidence."
+        "and lint operations. Preserve sources as immutable evidence. "
+        "When available, prefer wiki_info/wiki_search/wiki_read/wiki_sources MCP tools for "
+        "navigation and evidence, with a consistent task_id. MCP usage excludes shell reads."
     )
     print(
         json.dumps(

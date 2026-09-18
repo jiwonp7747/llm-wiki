@@ -44,4 +44,4 @@ Hooks connect the plugin to Codex lifecycle points. They intentionally avoid mut
 
 ## Scale path
 
-Start with `wiki/index.md`, file search, and links. Add local full-text or vector search only when page count or retrieval measurements justify it. Add MCP only when typed tools, remote storage, or multi-client access becomes a real requirement.
+Start with `wiki/index.md`, file search, and links. The read-only MCP server supplies typed navigation and access accounting across clients, while preserving Markdown/Git storage and the existing mutation scripts. Add vector search only when retrieval measurements justify it. See the [MCP contract](../plugins/llm-wiki/skills/llm-wiki/references/mcp.md) for bounds and accounting limits.

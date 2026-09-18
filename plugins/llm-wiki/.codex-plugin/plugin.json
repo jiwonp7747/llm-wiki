@@ -34,5 +34,18 @@
       "Ingest this source into the project wiki.",
       "Lint the project wiki and report knowledge gaps."
     ]
+  },
+  "mcpServers": {
+    "llm-wiki": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--frozen",
+        "--project",
+        "${PLUGIN_ROOT}",
+        "python",
+        "${PLUGIN_ROOT}/mcp/server.py"
+      ]
+    }
   }
 }

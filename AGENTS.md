@@ -9,7 +9,7 @@ This repository distributes the `llm-wiki` Codex plugin. Plugin code and templat
 - Keep runtime scripts dependency-free unless a measured requirement justifies a dependency.
 - Keep semantic judgment in `SKILL.md` and deterministic bookkeeping in Python scripts.
 - Keep bundled hooks local, transparent, non-destructive, and non-blocking.
-- Do not add MCP configuration until a concrete cross-client or remote-tool requirement exists.
+- The read-only MCP server serves typed wiki queries and access accounting for Codex and Claude Code. Keep wiki mutations in the existing scripts.
 - Never make plugin upgrades overwrite an initialized `knowledge/` directory.
 
 ## Required verification
@@ -17,7 +17,8 @@ This repository distributes the `llm-wiki` Codex plugin. Plugin code and templat
 Run these after changing the plugin:
 
 ```bash
-python3 -m unittest discover -s tests -v
+uv sync --frozen --project plugins/llm-wiki
+uv run --frozen --project plugins/llm-wiki python -m unittest discover -s tests -v
 python3 ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/llm-wiki/skills/llm-wiki
 python3 ~/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/llm-wiki
 git diff --check
