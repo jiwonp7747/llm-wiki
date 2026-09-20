@@ -143,7 +143,10 @@ class WikiService:
             if len(json.dumps(result, ensure_ascii=False)) > 64000:
                 raise ValueError("Result exceeds 64000 characters; reduce limit, context_lines or max_chars")
         except Exception as exc:
-            self._record(tool, task_id, False, False, {"error_type": type(exc).__name__}, [])
+            # 파일 시스템 예외의 절대 경로나 입력 본문은 기록하지 않는다.
+            message = str(exc)[:300] if isinstance(exc, ValueError) else "File unavailable" if isinstance(exc, OSError) else "Tool execution failed"
+            self._record(tool, task_id, False, False,
+                         {"error_type": type(exc).__name__, "error_message": message}, [])
             raise
         detail = {key: result[key] for key in ("next_offset", "next_cursor", "skipped_count") if key in result}
         if "query" in args:
