@@ -25,3 +25,17 @@ jobs:
         run: python -m compileall plugins/llm-wiki/skills/llm-wiki/scripts plugins/llm-wiki/hooks
       - name: Run tests
         run: uv run --frozen --project plugins/llm-wiki python -m unittest discover -s tests -v
+
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: plugins/llm-wiki/dashboard/package-lock.json
+      - run: npm ci --prefix plugins/llm-wiki/dashboard
+      - run: npm run build --prefix plugins/llm-wiki/dashboard
+      - name: Verify bundled assets match source
+        run: git diff --exit-code -- plugins/llm-wiki/dashboard/dist

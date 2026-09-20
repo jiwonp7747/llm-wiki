@@ -10,3 +10,6 @@ build/
 *.egg-info/
 
 .venv/
+node_modules/
+!plugins/llm-wiki/dashboard/dist/
+!plugins/llm-wiki/dashboard/dist/**

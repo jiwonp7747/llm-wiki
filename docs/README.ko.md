@@ -68,3 +68,10 @@ $llm-wiki로 위키의 모순과 오래된 내용을 검사해줘.
 uv sync --frozen --project plugins/llm-wiki
 uv run --frozen --project plugins/llm-wiki python -m unittest discover -s tests -v
 ```
+
+## 사용 기록 대시보드
+
+Blueprint.js 기반 읽기 전용 웹 대시보드에서 도구별 호출 횟수·마지막 호출,
+작업별 타임라인, 인덱스, 정본과 원본을 확인할 수 있다.
+MCP 도구가 아닌 별도 HTTP 페이지이며, 웹 조회는 MCP 통계에 포함되지 않는다.
+실행·빌드·집계 기준은 [대시보드 가이드](dashboard.md)를 따른다.

@@ -175,3 +175,16 @@ uv run --frozen --project plugins/llm-wiki python -m unittest discover -s tests 
 ```
 
 The test suite includes an actual stdio initialize/list/call exchange. For manual use, [examples/mcp_query.py](examples/mcp_query.py) accepts JSON tool calls on stdin and prints MCP results. Pass `[]` to list tools. The existing standard-library-only tests can still run without the MCP environment; MCP tests are explicitly skipped there, so that run alone is not MCP verification.
+
+## Web dashboard
+
+The plugin also serves a read-only HTTP dashboard built with Blueprint.js. It shows
+MCP tool counts, last calls, a filterable event timeline, the wiki index, and canonical
+pages with source previews. Web browsing does not add MCP usage events.
+
+```bash
+uv run --frozen --project plugins/llm-wiki python plugins/llm-wiki/mcp/dashboard.py --root /absolute/path/to/knowledge
+```
+
+Open `http://127.0.0.1:8766`. Built assets ship with the plugin; Node.js is only
+needed when changing the frontend. See [dashboard operation and API](docs/dashboard.md).

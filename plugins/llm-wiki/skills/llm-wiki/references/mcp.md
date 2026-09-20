@@ -69,3 +69,12 @@ uv run --frozen --project /path/to/llm-wiki/plugins/llm-wiki python \
 CLI options `--root`, `--audit-db`, `--task-id` override `LLM_WIKI_ROOT`, `LLM_WIKI_AUDIT_DB`, `LLM_WIKI_TASK_ID`. Relative CLI paths resolve from the host process working directory. No HTTP listener, remote authentication or write tools are provided.
 
 For offline use, preinstall the locked environment while connected and launch its Python executable directly; the default first-launch `uv` bootstrap may require network access.
+
+## Human dashboard
+
+Run `mcp/dashboard.py --root /absolute/path/to/knowledge` with the same plugin uv
+project to serve the bundled Blueprint.js UI at `http://127.0.0.1:8766`.
+This is a separate loopback HTTP process, not an MCP tool. It reads the same audit
+SQLite database; use `--audit-db` if MCP uses a custom location. Dashboard requests
+never create MCP audit events. It provides tool descriptions/counts, task/time
+filters, event details, the index, canonical pages, and linked original previews.
