@@ -29,13 +29,17 @@ def create_server(service: WikiService) -> FastMCP:
 
     @mcp.tool(annotations=annotations)
     def wiki_info(task_id: Task = None) -> dict[str, Any]:
-        """Get the connected wiki root, schema/index paths, limits and audit scope."""
+        """Get the connected wiki root, schema/index paths, optional tags.json policy, limits and audit scope."""
         return service.call("wiki_info", {key: value for key, value in locals().items() if key != "service"})
 
     @mcp.tool(annotations=annotations)
     def wiki_list(path_prefix: str = "wiki/", page_type: str | None = None, tag: str | None = None,
                   offset: Offset = 0, limit: Limit = 20, task_id: Task = None) -> dict[str, Any]:
-        """List Markdown pages by path prefix, frontmatter type and exact tag. Offset counts items, not bytes."""
+        """List Markdown pages by path prefix, frontmatter type and exact tag. Offset counts items, not bytes.
+
+        tag matches one frontmatter tag exactly (no prefix or wildcard); filters combine with AND.
+        Pass one tag per call and intersect results client-side for several tags. Items include tags.
+        """
         return service.call("wiki_list", {key: value for key, value in locals().items() if key != "service"})
 
     @mcp.tool(annotations=annotations)

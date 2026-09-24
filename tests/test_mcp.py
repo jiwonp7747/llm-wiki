@@ -46,12 +46,32 @@ class WikiMCPTests(unittest.TestCase):
     def test_list_filters_paging_and_info(self):
         info = self.call('wiki_info')
         self.assertEqual(info['root'], str(self.root.resolve()))
+        self.assertIsNone(info['tag_policy'])
         listed = self.call('wiki_list', page_type='concept', tag='runtime', limit=1)
         self.assertEqual([p['path'] for p in listed['items']], ['wiki/concepts/example.md'])
+        self.assertEqual(listed['items'][0]['tags'], ['runtime'])
         self.assertIsNone(listed['next_offset'])
         first = self.call('wiki_list', limit=1)
         second = self.call('wiki_list', limit=1, offset=first['next_offset'])
         self.assertNotEqual(first['items'][0]['path'], second['items'][0]['path'])
+
+    def test_list_tag_filter_is_exact_single_tag_and_combines_with_type(self):
+        other = self.root / 'wiki/guides/tagged.md'
+        other.write_text('---\nid: tagged\ntype: guide\nstatus: canonical\nsources: []\ntags:\n  - runtime\n  - 활동/운영\n---\n# Tagged\n', encoding='utf-8')
+        untagged = self.root / 'wiki/guides/plain.md'
+        untagged.write_text('---\nid: plain\ntype: guide\nstatus: canonical\nsources: []\n---\n# Plain\n', encoding='utf-8')
+        paths = lambda result: [p['path'] for p in result['items']]
+        self.assertEqual(paths(self.call('wiki_list', tag='runtime')), ['wiki/concepts/example.md', 'wiki/guides/tagged.md'])
+        self.assertEqual(paths(self.call('wiki_list', tag='활동/운영')), ['wiki/guides/tagged.md'])
+        self.assertEqual(paths(self.call('wiki_list', tag='활동')), [])
+        self.assertEqual(paths(self.call('wiki_list', tag='Runtime')), [])
+        self.assertEqual(paths(self.call('wiki_list', tag='runtime', page_type='guide')), ['wiki/guides/tagged.md'])
+        self.assertEqual(paths(self.call('wiki_list', tag='runtime', path_prefix='wiki/guides/')), ['wiki/guides/tagged.md'])
+        plain = next(p for p in self.call('wiki_list', path_prefix='wiki/guides/')['items'] if p['path'] == 'wiki/guides/plain.md')
+        self.assertEqual(plain['tags'], [])
+        (self.root / 'tags.json').write_text('{"tags": {"runtime": "Runtime pages"}}', encoding='utf-8')
+        self.assertEqual(self.call('wiki_info')['tag_policy'], 'tags.json')
+        self.assertIn('Runtime pages', self.call('wiki_read', path='tags.json')['text'])
 
     def test_search_literal_regex_context_paging(self):
         first = self.call('wiki_search', query='alpha', limit=1)

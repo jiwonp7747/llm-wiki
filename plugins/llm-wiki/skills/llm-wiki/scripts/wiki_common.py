@@ -26,6 +26,7 @@ ALLOWED_PAGE_TYPES = {
     "overview",
 }
 ALLOWED_PAGE_STATUSES = {"canonical", "draft", "stale", "archived"}
+TAG_POLICY_FILE = "tags.json"
 
 
 def utc_now() -> datetime:
@@ -130,6 +131,16 @@ def _decode_scalar(value: str) -> Any:
         try:
             return json.loads(value)
         except json.JSONDecodeError:
+            if value.startswith("[") and value.endswith("]"):
+                # Only plain string tokens are supported outside JSON arrays.
+                # Leave other YAML forms intact so validation rejects them.
+                items = [item.strip() for item in value[1:-1].split(",")]
+                if all(re.fullmatch(r"[^\W\d][\w/.-]*", item) for item in items):
+                    for item in items:
+                        if item.lower() in {"true", "false", "null"}:
+                            return value
+                    return items
+                return value
             return value.strip("\"")
     return value
 
@@ -182,6 +193,62 @@ def page_description(metadata: dict[str, Any], body: str) -> str:
             continue
         return stripped[:160]
     return "No description yet."
+
+
+def page_tags(metadata: dict[str, Any]) -> list[str]:
+    """Return frontmatter tags as a list. Missing or empty tags yield []; a scalar becomes one item."""
+    tags = metadata.get("tags", [])
+    if tags is None or tags == "":
+        return []
+    return tags if isinstance(tags, list) else [tags]
+
+
+def load_tag_policy(root: Path) -> tuple[dict[str, str] | None, list[str]]:
+    """Read the optional per-wiki tag dictionary at `<root>/tags.json`.
+
+    Returns (allowed tags mapped to descriptions, errors). The mapping is None when the
+    wiki defines no dictionary, in which case any well-formed tag is accepted.
+    """
+    path = root / TAG_POLICY_FILE
+    if not path.is_file():
+        return None, []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {}, [f"{TAG_POLICY_FILE}: invalid JSON: {exc}"]
+    tags = data.get("tags") if isinstance(data, dict) else None
+    if not isinstance(tags, dict):
+        return {}, [f"{TAG_POLICY_FILE}: expected an object with a 'tags' mapping of tag -> description"]
+    allowed: dict[str, str] = {}
+    errors: list[str] = []
+    for tag, description in tags.items():
+        if not isinstance(tag, str) or not tag.strip() or tag != tag.strip():
+            errors.append(f"{TAG_POLICY_FILE}: tag names must be non-empty strings without surrounding spaces")
+            continue
+        allowed[tag] = description if isinstance(description, str) else ""
+    return allowed, errors
+
+
+def validate_tags(raw_tags: Any, allowed: dict[str, str] | None) -> list[str]:
+    """Check one page's `tags` value: a list of unique non-empty strings, each in `allowed` when given."""
+    if raw_tags is None:
+        return []
+    if not isinstance(raw_tags, list):
+        return ["tags must be a YAML list of strings"]
+    problems: list[str] = []
+    seen: set[str] = set()
+    for tag in raw_tags:
+        if not isinstance(tag, str) or not tag.strip():
+            problems.append("tags must contain non-empty strings")
+            continue
+        if tag != tag.strip():
+            problems.append(f"tag '{tag}' has surrounding whitespace")
+        if tag in seen:
+            problems.append(f"duplicate tag '{tag}'")
+        elif allowed is not None and tag not in allowed:
+            problems.append(f"unknown tag '{tag}' (not in {TAG_POLICY_FILE})")
+        seen.add(tag)
+    return problems
 
 
 def wiki_markdown_files(root: Path) -> list[Path]:

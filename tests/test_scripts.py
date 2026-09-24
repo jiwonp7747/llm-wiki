@@ -89,6 +89,89 @@ class WikiScriptTests(unittest.TestCase):
         result = json.loads(failed.stdout)
         self.assertTrue(any("hash changed" in item for item in result["errors"]))
 
+    def write_page(self, relative: str, frontmatter: str) -> Path:
+        page = self.root / "wiki" / relative
+        page.parent.mkdir(parents=True, exist_ok=True)
+        page.write_text(
+            f"---\nid: {Path(relative).stem}\ntype: concept\nstatus: canonical\nsources: []\n"
+            f"{frontmatter}updated: 2026-01-01\ndescription: Tag fixture\n---\n# {Path(relative).stem}\n"
+            "Body. [[overview|Overview]]\n",
+            encoding="utf-8",
+        )
+        return page
+
+    def validate(self) -> dict:
+        completed = self.run_script("validate_wiki.py", "--root", str(self.root), "--json", check=False)
+        return json.loads(completed.stdout)
+
+    def test_tags_are_optional_and_well_formed_without_a_dictionary(self) -> None:
+        self.initialize()
+        self.write_page("concepts/untagged.md", "")
+        self.write_page("concepts/block.md", "tags:\n  - infra/k8s\n  - 활동/운영\n")
+        self.write_page("concepts/flow.md", "tags: [infra/k8s, 활동/운영]\n")
+        self.write_page("concepts/empty.md", "tags: []\n")
+        result = self.validate()
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertFalse(result["tag_policy"])
+        self.assertEqual(result["tagged_page_count"], 2)
+
+        self.write_page("concepts/duplicate.md", "tags:\n  - infra/k8s\n  - infra/k8s\n")
+        self.write_page("concepts/scalar.md", "tags: infra/k8s\n")
+        self.write_page("concepts/blank.md", "tags:\n  - \"\"\n")
+        result = self.validate()
+        self.assertFalse(result["valid"])
+        errors = "\n".join(result["errors"])
+        self.assertIn("duplicate.md: duplicate tag 'infra/k8s'", errors)
+        self.assertIn("scalar.md: tags must be a YAML list of strings", errors)
+        self.assertIn("blank.md: tags must contain non-empty strings", errors)
+        self.assertNotIn("block.md", errors)
+
+    def test_flow_tags_reject_unsupported_yaml_without_silent_coercion(self) -> None:
+        self.initialize()
+        invalid = [
+            "[영역/학습, '']", "[영역/학습, true]", "[영역/학습, 123]",
+            "['a,b', c]", "[영역/학습,, 주제/인프라]",
+            '["영역/학습", ""]', '["영역/학습", true]',
+            '["영역/학습", 123]', '["영역/학습", null]',
+        ]
+        for value in invalid:
+            with self.subTest(value=value):
+                self.write_page("concepts/flow.md", f"tags: {value}\n")
+                result = self.validate()
+                self.assertFalse(result["valid"])
+                self.assertTrue(any("tags" in error for error in result["errors"]))
+
+        # JSON quoting preserves punctuation instead of splitting a tag at its comma.
+        (self.root / "tags.json").write_text(
+            json.dumps({"tags": {"a,b": "Comma tag", "c": "Plain tag"}}),
+            encoding="utf-8",
+        )
+        self.write_page("concepts/flow.md", 'tags: ["a,b", "c"]\n')
+        self.assertTrue(self.validate()["valid"])
+
+    def test_tags_json_restricts_allowed_tags(self) -> None:
+        self.initialize()
+        self.write_page("concepts/known.md", "tags:\n  - 영역/학습\n")
+        self.write_page("concepts/unknown.md", "tags:\n  - 영역/학습\n  - 영역/미정\n")
+        (self.root / "tags.json").write_text(
+            json.dumps({"tags": {"영역/학습": "학습 목적의 지식", "영역/생활": ""}}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        result = self.validate()
+        self.assertTrue(result["tag_policy"])
+        self.assertFalse(result["valid"])
+        self.assertEqual(
+            [item for item in result["errors"] if "tag" in item],
+            ["wiki/concepts/unknown.md: unknown tag '영역/미정' (not in tags.json)"],
+        )
+        self.assertEqual(result["tagged_page_count"], 1)
+
+        (self.root / "tags.json").write_text('{"tags": ["영역/학습"]}', encoding="utf-8")
+        result = self.validate()
+        self.assertTrue(any("tags.json: expected an object" in item for item in result["errors"]))
+        (self.root / "tags.json").write_text("{not json", encoding="utf-8")
+        self.assertTrue(any("tags.json: invalid JSON" in item for item in self.validate()["errors"]))
+
     def test_append_log(self) -> None:
         self.initialize()
         self.run_script(

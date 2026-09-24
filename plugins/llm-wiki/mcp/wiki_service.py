@@ -17,7 +17,7 @@ from typing import Any
 import regex
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "skills/llm-wiki/scripts"))
-from wiki_common import parse_frontmatter, page_title, sha256_bytes  # noqa: E402
+from wiki_common import TAG_POLICY_FILE, page_tags, parse_frontmatter, page_title, sha256_bytes  # noqa: E402
 
 MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_FILES = 5000
@@ -81,7 +81,7 @@ class WikiService:
         path = Path(relative)
         if path.is_absolute() or ".." in path.parts or "\\" in relative:
             raise ValueError("Use a wiki-root-relative path without '..' or backslashes")
-        if not path.parts or path.parts[0] not in {"wiki", "sources", "SCHEMA.md", "AGENTS.md", "system"}:
+        if not path.parts or path.parts[0] not in {"wiki", "sources", "SCHEMA.md", "AGENTS.md", TAG_POLICY_FILE, "system"}:
             raise ValueError("Path is outside the wiki content areas")
         if path.parts[0] == "system" and relative != "system/manifest.jsonl":
             raise ValueError("Only the source manifest is readable under system/")
@@ -172,6 +172,7 @@ class WikiService:
     def wiki_info(self) -> dict:
         return {
             "root": str(self.root), "schema": "SCHEMA.md", "index": "wiki/index.md",
+            "tag_policy": TAG_POLICY_FILE if (self.root / TAG_POLICY_FILE).is_file() else None,
             "categories": sorted(p.name for p in (self.root / "wiki").iterdir()
                                  if p.is_dir() and not p.is_symlink()),
             "read_only": True, "audit_db": str(self.audit_db),
@@ -203,14 +204,14 @@ class WikiService:
             metadata, body = parse_frontmatter(text)
             if page_type is not None and metadata.get("type") != page_type:
                 continue
-            tags = metadata.get("tags", [])
-            if not isinstance(tags, list):
-                tags = [tags]
+            tags = page_tags(metadata)
+            # 정확 일치 필터: 한 번에 태그 하나, page_type/path_prefix와는 AND로 결합된다.
             if tag is not None and tag not in tags:
                 continue
             items.append({"path": path, "title": page_title(body, Path(path).stem)[:160],
                           "type": str(metadata.get("type", ""))[:40],
-                          "status": str(metadata.get("status", ""))[:40], "sha256": digest})
+                          "status": str(metadata.get("status", ""))[:40],
+                          "tags": [str(value)[:80] for value in tags[:20]], "sha256": digest})
         page = items[offset:offset + limit]
         next_offset = offset + len(page) if offset + len(page) < len(items) else None
         return {"items": page, "total": len(items), "next_offset": next_offset,

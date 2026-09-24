@@ -32,6 +32,21 @@ description: One-line routing summary
 - Use `draft` for incomplete synthesis, `stale` for claims that need revalidation, and `archived` for retained history.
 - Keep one canonical page per concept or component; link rather than duplicate claims.
 
+### Optional tags
+
+Pages may add `tags`, a YAML list of strings (block list or `[a, b]` flow list; a bare scalar is rejected):
+
+```yaml
+tags:
+  - 영역/학습
+  - 주제/인프라
+```
+
+- Flow lists accept JSON arrays or simple unquoted tokens beginning with a letter or underscore, followed by letters, digits, underscores, slashes, dots, or hyphens. YAML-only quoting and mixed scalar forms are rejected rather than coerced; use a block list or JSON string array instead. Empty and non-string JSON entries are validated without being dropped.
+- Tags are cross-cutting facets for `wiki_list --tag` filtering and lint counts. They do not replace `type`, `status`, or wikilinks to entities, and they do not assert that a claim was verified.
+- A wiki may pin its allowed tags in `<root>/tags.json`: `{"tags": {"tag": "one-line definition", ...}}`. When that file exists, `validate_wiki.py` reports any tag outside it as an error; without it, any well-formed tag passes. Duplicate, empty, or non-string tags are always errors.
+- Keep tag definitions and application rules for humans in a wiki guide page, and keep `tags.json` as the machine-readable source that the validator enforces.
+
 ## Page bodies
 
 Prefer this order when applicable:
@@ -42,4 +57,4 @@ Prefer this order when applicable:
 4. contradictions or uncertainty;
 5. open questions.
 
-Use Obsidian-style `[[path/page|Label]]` links. `build_index.py` catalogs every page; `validate_wiki.py` checks metadata, source IDs, links, duplicate IDs, and source hashes.
+Use Obsidian-style `[[path/page|Label]]` links. `build_index.py` catalogs every page; `validate_wiki.py` checks metadata, source IDs, tags, links, duplicate IDs, and source hashes.

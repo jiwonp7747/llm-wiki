@@ -1,6 +1,6 @@
 {
   "name": "llm-wiki",
-  "version": "0.1.0+codex.20260919112303",
+  "version": "0.1.0+codex.20260924151340",
   "description": "Build and maintain persistent Markdown knowledge bases from immutable sources.",
   "author": {
     "name": "jiwonp7747",

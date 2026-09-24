@@ -12,11 +12,13 @@ from wiki_common import (
     ALLOWED_PAGE_STATUSES,
     ALLOWED_PAGE_TYPES,
     REQUIRED_PAGE_FIELDS,
+    load_tag_policy,
     normalize_wikilink,
     parse_frontmatter,
     registered_sources,
     resolve_wikilink,
     sha256_file,
+    validate_tags,
     wiki_markdown_files,
     wiki_targets,
     wikilinks,
@@ -49,6 +51,10 @@ def validate(root: Path) -> dict[str, object]:
         errors.append(str(exc))
         sources = {}
 
+    allowed_tags, tag_policy_errors = load_tag_policy(root)
+    errors.extend(tag_policy_errors)
+    tagged_pages = 0
+
     page_ids: list[str] = []
     paths, stems = wiki_targets(root)
     inbound: Counter[str] = Counter()
@@ -79,6 +85,11 @@ def validate(root: Path) -> dict[str, object]:
             for source_id in source_ids:
                 if source_id not in sources:
                     errors.append(f"{relative}: unknown source ID '{source_id}'")
+        if "tags" in metadata:
+            tag_problems = validate_tags(metadata.get("tags"), allowed_tags)
+            errors.extend(f"{relative}: {problem}" for problem in tag_problems)
+            if not tag_problems and metadata.get("tags"):
+                tagged_pages += 1
 
         for link in wikilinks(text):
             if not resolve_wikilink(link, paths, stems):
@@ -130,6 +141,8 @@ def validate(root: Path) -> dict[str, object]:
         "valid": not errors,
         "page_count": len(pages),
         "source_count": len(sources),
+        "tagged_page_count": tagged_pages,
+        "tag_policy": allowed_tags is not None,
         "errors": errors,
         "warnings": warnings,
     }

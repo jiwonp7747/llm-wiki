@@ -47,6 +47,8 @@ description: One-line routing summary
 
 Allowed statuses are `canonical`, `draft`, `stale`, and `archived`. Navigation pages may use `sources: []`; factual pages should cite registered source IDs.
 
+Pages may add an optional `tags` list of strings for cross-cutting facets. If `tags.json` exists in this directory (`{"tags": {"tag": "definition"}}`), only the tags listed there are valid; duplicates and non-string tags are always rejected. Tags never replace `type`, `status`, or wikilinks.
+
 ## 5. Linking and canonical ownership
 
 - Use `[[path/page|Label]]` links.
