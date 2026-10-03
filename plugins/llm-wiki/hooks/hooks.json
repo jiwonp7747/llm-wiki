@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${PLUGIN_ROOT}/hooks/session_start.py\"",
-            "commandWindows": "py -3 \"%PLUGIN_ROOT%\\hooks\\session_start.py\"",
+            "command": "[ -n \"${PLUGIN_ROOT}\" ] || exit 0; python3 \"${PLUGIN_ROOT}/hooks/session_start.py\"",
+            "commandWindows": "if not \"%PLUGIN_ROOT%\"==\"\" py -3 \"%PLUGIN_ROOT%\\hooks\\session_start.py\"",
             "timeout": 10,
             "statusMessage": "Loading LLM Wiki context"
           }
@@ -19,8 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${PLUGIN_ROOT}/hooks/stop_validate.py\"",
-            "commandWindows": "py -3 \"%PLUGIN_ROOT%\\hooks\\stop_validate.py\"",
+            "command": "[ -n \"${PLUGIN_ROOT}\" ] || exit 0; python3 \"${PLUGIN_ROOT}/hooks/stop_validate.py\"",
+            "commandWindows": "if not \"%PLUGIN_ROOT%\"==\"\" py -3 \"%PLUGIN_ROOT%\\hooks\\stop_validate.py\"",
             "timeout": 30,
             "statusMessage": "Checking LLM Wiki structure"
           }

@@ -4,10 +4,10 @@ The plugin ships two hook maps over the same Python files. They differ only in t
 
 | Runtime | File | Variable | Discovery |
 |---|---|---|---|
-| Codex | `plugins/llm-wiki/hooks/hooks.json` | `${PLUGIN_ROOT}` | default location; the manifest does not name it |
+| Codex | `plugins/llm-wiki/hooks/hooks.json` | `${PLUGIN_ROOT}` | default location; commands no-op when `${PLUGIN_ROOT}` is unset |
 | Claude Code | `plugins/llm-wiki/hooks/claude-hooks.json` | `${CLAUDE_PLUGIN_ROOT}` | named by the `hooks` field of `.claude-plugin/plugin.json` |
 
-Claude Code would otherwise auto-load `hooks/hooks.json`, where `${PLUGIN_ROOT}` is unset. The explicit `hooks` field points it at the correct map.
+Claude Code loads the manifest `hooks` map in addition to the default `hooks/hooks.json`, not instead of it. The Codex map therefore guards each command and exits 0 when `${PLUGIN_ROOT}` is unset, so under Claude Code only `claude-hooks.json` runs.
 
 ## SessionStart
 
