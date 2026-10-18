@@ -107,6 +107,8 @@ class WikiMCPTests(unittest.TestCase):
                 break
         self.assertEqual(output, text)
         self.assertEqual(expected, hashlib.sha256(text.encode()).hexdigest())
+        with self.assertRaisesRegex(ValueError, 'Unsupported cursor argument'):
+            self.call('wiki_read', path='wiki/concepts/example.md', cursor={'start_line': 2, 'start_column': 0})
         self.page.write_text('changed', encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'changed'):
             self.call('wiki_read', path='wiki/concepts/example.md', expected_sha256=expected)
@@ -274,6 +276,9 @@ class WikiMCPTests(unittest.TestCase):
                         self.assertIn('audit', result.structuredContent)
                     invalid = await client.call_tool('wiki_read', {'path':'SCHEMA.md', 'start_line':0})
                     self.assertTrue(invalid.isError)
+                    ignored_cursor = await client.call_tool('wiki_read', {'path':'wiki/concepts/example.md',
+                        'cursor': {'start_line': 2, 'start_column': 0}})
+                    self.assertTrue(ignored_cursor.isError)
                     traversal = await client.call_tool('wiki_read', {'path':'../secret'})
                     self.assertTrue(traversal.isError)
                     still_alive = await client.call_tool('wiki_info', {})

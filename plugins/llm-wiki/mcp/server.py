@@ -61,11 +61,13 @@ def create_server(service: WikiService) -> FastMCP:
     def wiki_read(path: str, start_line: Annotated[int, Field(ge=1, strict=True)] = 1,
                   line_count: Annotated[int, Field(ge=1, le=200, strict=True)] = 100,
                   start_column: Offset = 0, max_chars: Annotated[int, Field(ge=1, le=24000, strict=True)] = 12000,
-                  expected_sha256: str | None = None, task_id: Task = None) -> dict[str, Any]:
+                  expected_sha256: str | None = None, task_id: Task = None,
+                  cursor: dict[str, int] | None = None) -> dict[str, Any]:
         """Read UTF-8 text in the wiki root (max 2 MiB). Never reads outside the root or through symlinks.
 
         Lines are 1-based; columns and max_chars count Unicode characters, not tokens/bytes.
         Pass next_cursor's start_line/start_column and returned sha256 as expected_sha256 to continue safely.
+        The cursor object itself is not a supported input and is rejected.
         End columns are exclusive and include newline characters. PDF/binary extraction is not supported.
         """
         return service.call("wiki_read", {key: value for key, value in locals().items() if key != "service"})

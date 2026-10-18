@@ -273,7 +273,9 @@ class WikiService:
                 "_documents": [{**item, "kind": "search_hit"} for item in matches]}
 
     def wiki_read(self, path: str, start_line=1, line_count=100, start_column=0,
-                  max_chars=12000, expected_sha256=None) -> dict:
+                  max_chars=12000, expected_sha256=None, cursor=None) -> dict:
+        if cursor is not None:
+            raise ValueError("Unsupported cursor argument; pass next_cursor.start_line and start_column as top-level arguments")
         if not 1 <= start_line or not 1 <= line_count <= 200 or start_column < 0 or not 1 <= max_chars <= 24000:
             raise ValueError("Invalid read bounds: lines 1-based, count 1..200, column >=0, chars 1..24000")
         text, digest, _ = self._text(path)

@@ -35,6 +35,8 @@ If it returns `next_cursor: {"start_line": 75, "start_column": 240}`, call:
 {"path":"wiki/components/runtime.md","start_line":75,"start_column":240,"expected_sha256":"<sha256 from previous response>"}
 ```
 
+Pass the two cursor fields as top-level arguments. Passing a `cursor` object to `wiki_read` is rejected with an explicit error.
+
 A hash mismatch is an error; restart from the beginning to avoid mixing document versions. Text files are limited to 2 MiB, read line_count to 200 and max_chars to 24,000. Search/list inspect at most 5,000 candidate files and 32 MiB; narrow path_prefix if exceeded. Regex has a 20 ms per-line and 5 second overall search budget. Search context has at most 2 surrounding lines and 400 characters per displayed line; use `wiki_read` for full context. Non-text/oversized pages are skipped with an explicit count and up to 20 path samples. Other I/O failures are errors. Response JSON is capped at 64,000 characters; lower limit/context/max_chars if needed.
 
 PDFs and other binaries are resolved as source metadata, but not extracted. Use a document reader separately; that read is outside MCP accounting. The registered source hash is provenance metadata, not an assertion that the original was revalidated by `wiki_sources`.
