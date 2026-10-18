@@ -39,6 +39,8 @@ Pass the two cursor fields as top-level arguments. Passing a `cursor` object to 
 
 A hash mismatch is an error; restart from the beginning to avoid mixing document versions. Text files are limited to 2 MiB, read line_count to 200 and max_chars to 24,000. Search/list inspect at most 5,000 candidate files and 32 MiB; narrow path_prefix if exceeded. Regex has a 20 ms per-line and 5 second overall search budget. Search context has at most 2 surrounding lines and 400 characters per displayed line; use `wiki_read` for full context. Non-text/oversized pages are skipped with an explicit count and up to 20 path samples. Other I/O failures are errors. Response JSON is capped at 64,000 characters; lower limit/context/max_chars if needed.
 
+For a complete text read from the fallback client, pass a `wiki_read` call on stdin to `examples/mcp_query.py --follow-cursor`. It follows `next_cursor` with `expected_sha256`, combines the text into one JSON result, and reports `read_calls` and `audit_event_ids`. The option defaults each range to 200 lines and 24,000 characters unless the call specifies smaller values. Each range remains a separate audited MCP read; if any range fails, the command exits nonzero instead of presenting partial text as complete.
+
 PDFs and other binaries are resolved as source metadata, but not extracted. Use a document reader separately; that read is outside MCP accounting. The registered source hash is provenance metadata, not an assertion that the original was revalidated by `wiki_sources`.
 
 ## Accounting
