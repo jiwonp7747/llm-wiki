@@ -114,6 +114,8 @@ class WikiService:
         prefix = path_prefix.removeprefix("./")
         if ".." in Path(prefix).parts or Path(prefix).is_absolute() or "\\" in prefix:
             raise ValueError("Invalid path_prefix")
+        if prefix and prefix != "wiki" and not prefix.startswith("wiki/"):
+            raise ValueError("path_prefix must be within wiki/; source originals are not searchable")
         wiki = self.root / "wiki"
         if wiki.is_symlink():
             raise ValueError("wiki/ must not be a symlink")

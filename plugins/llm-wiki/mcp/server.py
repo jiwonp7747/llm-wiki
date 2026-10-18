@@ -47,7 +47,9 @@ def create_server(service: WikiService) -> FastMCP:
                     path_prefix: str = "wiki/", use_regex: bool = False, case_sensitive: bool = False,
                     context_lines: Annotated[int, Field(ge=0, le=2, strict=True)] = 1,
                     offset: Offset = 0, limit: Limit = 20, task_id: Task = None) -> dict[str, Any]:
-        """Search wiki Markdown, literal by default or timeout-bounded regex. One hit per matching line.
+        """Search wiki/ Markdown only, literal by default or timeout-bounded regex. One hit per matching line.
+
+        path_prefix outside wiki/ is rejected; resolve source IDs with wiki_sources and read originals with wiki_read.
 
         Returns file, 1-based line, 0-based Unicode character column, context and SHA-256.
         offset counts matching lines. Follow next_offset with the same query and filters.

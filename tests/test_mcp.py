@@ -84,6 +84,15 @@ class WikiMCPTests(unittest.TestCase):
         self.assertEqual(self.call('wiki_search', query='^alpha')['matches'], [])
         self.assertEqual(len(self.call('wiki_search', query='한글')['matches']), 1)
 
+    def test_search_rejects_source_prefix_instead_of_silent_empty_result(self):
+        original = self.root / 'sources' / 'original.md'
+        original.write_text('Pasted image', encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'source originals are not searchable'):
+            self.call('wiki_search', query='Pasted image', path_prefix='sources/')
+        with self.assertRaisesRegex(ValueError, 'within wiki/'):
+            self.call('wiki_list', path_prefix='sources/')
+        self.assertEqual(len(self.call('wiki_search', query='Alpha', path_prefix='wiki/concepts/', case_sensitive=True)['matches']), 1)
+
     def test_read_unicode_long_line_continuation_and_hash(self):
         text = '한글🙂' * 100 + '\nsecond\n'
         self.page.write_text(text, encoding='utf-8')

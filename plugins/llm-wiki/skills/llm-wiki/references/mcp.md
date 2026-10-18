@@ -13,7 +13,7 @@ The plugin supplies a local stdio server with six tools. It requires `uv` and Py
 | `wiki_sources` | Resolve page source IDs or one source ID | Exactly one of `path` / `source_id`; metadata only |
 | `wiki_usage` | Calls, distinct documents, per-document exposure/reads, recent samples | Optional task/session/time filters; 20 document rows |
 
-Paths are relative to the fixed wiki root. `path_prefix` is a literal prefix, not a glob. Search covers wiki Markdown; source originals are accessed through `wiki_sources` followed by `wiki_read`. File and directory symlinks are excluded. The server is a local trusted-workspace tool, not an OS sandbox against other processes concurrently replacing files.
+Paths are relative to the fixed wiki root. `path_prefix` is a literal prefix, not a glob. List and search cover only `wiki/` Markdown; a prefix outside `wiki/` returns an explicit error rather than an empty result. Source originals are accessed through `wiki_sources` followed by `wiki_read`, not searched. File and directory symlinks are excluded. The server is a local trusted-workspace tool, not an OS sandbox against other processes concurrently replacing files.
 
 `tag` is an exact, case-sensitive match against one entry of the page's frontmatter `tags` list. It accepts one tag per call; there is no prefix, wildcard, or OR matching, so `영역/` does not match `영역/학습`. `tag`, `page_type`, and `path_prefix` combine with AND. For several tags, run one list per tag and intersect the paths client-side. Read `tags.json` (when `wiki_info` reports it) to see the wiki's allowed tags.
 
