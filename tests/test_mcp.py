@@ -122,6 +122,22 @@ class WikiMCPTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.call('wiki_read', path='wiki/concepts/example.md', start_line=3)
 
+    def test_query_client_follows_cursor_once_per_range(self):
+        content = ''.join(f'Line {n}\n' for n in range(451))
+        self.page.write_text(content, encoding='utf-8')
+        call = {'name': 'wiki_read', 'arguments': {'path': 'wiki/concepts/example.md'}}
+        process = subprocess.run([sys.executable, str(REPO / 'examples/mcp_query.py'),
+            '--root', str(self.root), '--audit-db', str(self.db), '--task-id', 'follow-test',
+            '--follow-cursor'], input=json.dumps(call), capture_output=True, text=True, timeout=20)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        result = json.loads(process.stdout)['result']
+        self.assertEqual(result['text'], content)
+        self.assertEqual(result['read_calls'], 3)
+        self.assertEqual(len(result['audit_event_ids']), 3)
+        self.assertIsNone(result['next_cursor'])
+        usage = self.call('wiki_usage', filter_task_id='follow-test')
+        self.assertEqual(usage['documents'][0]['body_reads'], 3)
+
     def test_block_escape_absolute_symlink_and_system_logs(self):
         secret = self.project / 'secret.txt'
         secret.write_text('secret')
