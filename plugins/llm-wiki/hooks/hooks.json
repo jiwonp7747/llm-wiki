@@ -25,6 +25,94 @@
             "statusMessage": "Checking LLM Wiki structure"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"${PLUGIN_ROOT}\" ] || exit 0; python3 \"${PLUGIN_ROOT}/hooks/wiki_usage.py\" --client codex",
+            "commandWindows": "if not \"%PLUGIN_ROOT%\"==\"\" py -3 \"%PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client codex",
+            "timeout": 3,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"${PLUGIN_ROOT}\" ] || exit 0; python3 \"${PLUGIN_ROOT}/hooks/wiki_usage.py\" --client codex",
+            "commandWindows": "if not \"%PLUGIN_ROOT%\"==\"\" py -3 \"%PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client codex",
+            "timeout": 3,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"${PLUGIN_ROOT}\" ] || exit 0; python3 \"${PLUGIN_ROOT}/hooks/wiki_usage.py\" --client codex",
+            "commandWindows": "if not \"%PLUGIN_ROOT%\"==\"\" py -3 \"%PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client codex",
+            "timeout": 3,
+            "async": true
+          }
+        ],
+        "matcher": "^mcp__.*__wiki_(info|list|search|read|sources|usage)$"
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"${PLUGIN_ROOT}\" ] || exit 0; python3 \"${PLUGIN_ROOT}/hooks/wiki_usage.py\" --client codex",
+            "commandWindows": "if not \"%PLUGIN_ROOT%\"==\"\" py -3 \"%PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client codex",
+            "timeout": 3,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"${PLUGIN_ROOT}\" ] || exit 0; python3 \"${PLUGIN_ROOT}/hooks/wiki_usage.py\" --client codex",
+            "commandWindows": "if not \"%PLUGIN_ROOT%\"==\"\" py -3 \"%PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client codex",
+            "timeout": 3,
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"${PLUGIN_ROOT}\" ] || exit 0; python3 \"${PLUGIN_ROOT}/hooks/wiki_usage.py\" --client codex",
+            "commandWindows": "if not \"%PLUGIN_ROOT%\"==\"\" py -3 \"%PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client codex",
+            "timeout": 1
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"${PLUGIN_ROOT}\" ] || exit 0; python3 \"${PLUGIN_ROOT}/hooks/wiki_usage.py\" --client codex",
+            "commandWindows": "if not \"%PLUGIN_ROOT%\"==\"\" py -3 \"%PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client codex",
+            "timeout": 1
+          }
+        ]
       }
     ]
   }

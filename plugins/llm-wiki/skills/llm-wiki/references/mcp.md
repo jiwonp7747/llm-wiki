@@ -11,7 +11,29 @@ The plugin supplies a local stdio server with six tools. It requires `uv` and Py
 | `wiki_search` | Literal or regex search with file/line/context/hash | Case-insensitive, 1 context line, limit 20 |
 | `wiki_read` | Read schema, instructions, wiki pages or UTF-8 evidence | 1-based line 1, 100 lines, 12,000 characters |
 | `wiki_sources` | Resolve page source IDs or one source ID | Exactly one of `path` / `source_id`; metadata only |
-| `wiki_usage` | Calls, distinct documents, per-document exposure/reads, recent samples | Optional task/session/time filters; 20 document rows |
+| `wiki_usage` | Calls, distinct documents, per-document exposure/reads, recent samples | Optional task/session/time/purpose/origin/role filters; 20 document rows |
+
+All six tools accept these optional caller declarations in addition to `task_id`:
+
+| Argument | Allowed values | Meaning |
+|---|---|---|
+| `usage_purpose` | `knowledge_lookup`, `maintenance`, `diagnostic`, `unknown` | Why this particular call is needed |
+| `execution_origin` | `interactive`, `automation`, `background`, `unknown` | How the work was started |
+| `agent_role` | `root`, `subagent`, `unknown` | Which agent made the call |
+
+Use `knowledge_lookup` for answering or decision support, `maintenance` for wiki upkeep, and `diagnostic` for checking tool behavior, coverage, or accounting. Purpose and execution origin are independent: a scheduled question answer is a lookup from `automation`, while an interactive index repair is `maintenance`. Declare the labels on every call; one `task_id` can contain several purposes. Neither task-name patterns nor prompt text determine purpose.
+
+```json
+{
+  "path": "wiki/overview.md",
+  "task_id": "authentication-answer",
+  "usage_purpose": "knowledge_lookup",
+  "execution_origin": "interactive",
+  "agent_role": "root"
+}
+```
+
+Omitted labels use explicit server defaults when configured, otherwise `unknown`. Invalid enum values are rejected. The server returns the effective labels and wiki root in every successful response's `audit` object, alongside `event_id`, server `session_id`, and `task_id`. Audit storage uses the column name `purpose` for `usage_purpose`.
 
 Paths are relative to the fixed wiki root. `path_prefix` is a literal prefix, not a glob. List and search cover only `wiki/` Markdown; a prefix outside `wiki/` returns an explicit error rather than an empty result. Source originals are accessed through `wiki_sources` followed by `wiki_read`, not searched. File and directory symlinks are excluded. The server is a local trusted-workspace tool, not an OS sandbox against other processes concurrently replacing files.
 
@@ -50,15 +72,32 @@ Successful calls and service errors are automatically recorded in a local SQLite
 - `session_id` is generated per server process. It is not a Codex task ID.
 - Pass the same `task_id` (max 200 characters) on every call, or set it at startup. Labels are caller-provided and not authentication.
 - `wiki_usage(filter_task_id="review-123")` filters that label. Its `task_id` labels the report call itself.
+- `filter_purpose`, `filter_execution_origin`, and `filter_agent_role` select stored events. The report call's `usage_purpose`, `execution_origin`, and `agent_role` describe the call itself. For example, inspect lookup activity while classifying the inspection as diagnostic:
+
+  ```json
+  {
+    "filter_purpose": "knowledge_lookup",
+    "filter_execution_origin": "automation",
+    "task_id": "check-scheduled-lookups",
+    "usage_purpose": "diagnostic",
+    "execution_origin": "interactive",
+    "agent_role": "root"
+  }
+  ```
+
 - `since` is inclusive; `until` exclusive. Use ISO-8601 timestamps with a timezone, e.g. `2026-09-18T00:00:00+09:00`.
 - Body reads count once per returned page/range call; unique body-read documents count distinct paths.
 - Search exposure counts once per document per search call, even if several lines matched. Files scanned but not returned do not count as exposed/read.
 - Lists are separate exposure events. `source_lookups` counts source-reference resolution and original metadata lookup separately from body reads. Empty reads do not count as body-read documents.
 - Usage reports exclude their own call. Recent events show the last 5 events with up to 5 document records each (`document_records` gives the full count); aggregate counts use all matching events.
-- Records contain time, tool, task/process identity, success, truncation, returned paths/ranges and SHA-256. Queries are hashed; source/page bodies and raw query strings are not copied to the audit database.
+- Records contain time, tool, task/process identity, success, truncation, returned paths/ranges and SHA-256, declared purpose/origin/role, and `classification_source`. Queries are hashed; source/page bodies and raw query strings are not copied to the audit database.
+- `classification_source` is `explicit` for a non-unknown call purpose, `inherited` for an explicit server default or a verified parent context, and `unknown` when purpose is unknown. `legacy_inferred` is reserved for distinguished legacy evidence; startup does not guess historical classifications. Existing events receive `unknown` when the schema is upgraded, preserving event IDs and document records.
+- Successful responses include `metrics`. `duration_ms` measures service processing before the audit write, not end-to-end latency or model time. `result_count` counts returned items/matches/sources when present, otherwise returned document records. `scanned_files` and `scanned_bytes` describe list/search scans and text reads where measured; absent metrics are not zero. Scan counts are not body-read counts.
 - Shell reads, startup hook context, and other document readers are outside these statistics. If MCP is unavailable, disclose shell fallback rather than claiming full coverage.
 
-The default database is `$XDG_STATE_HOME/llm-wiki/<root-hash>/access.sqlite3` or `~/.local/state/llm-wiki/<root-hash>/access.sqlite3`. A custom database must be outside the wiki, is bound to one root, and should be on a local filesystem. It is separate from the Git-managed operation log and manifest. SQLite transactions serialize concurrent writers. No automatic deletion/retention policy is enabled.
+Optional [usage hooks](hooks.md) correlate a runtime tool call with an existing MCP event only when the response's wiki root, event ID, server session ID, and tool match. They add chat/turn/tool-use metadata without inserting a second MCP call. A hook observation, link in an answer, or declared purpose is not evidence of model understanding or answer usefulness. Purpose stays per event when a turn mixes several kinds of work.
+
+The default database is `$XDG_STATE_HOME/llm-wiki/<root-hash>/access.sqlite3` or `~/.local/state/llm-wiki/<root-hash>/access.sqlite3`. A custom database must be outside the wiki, is bound to one root, and should be on a local filesystem. Configure the usage hook with the same `--audit-db` path or `LLM_WIKI_AUDIT_DB` value when using a custom database. It is separate from the Git-managed operation log and manifest. SQLite transactions serialize concurrent writers. No automatic deletion/retention policy is enabled.
 
 ## Startup
 
@@ -72,7 +111,13 @@ uv run --frozen --project /path/to/llm-wiki/plugins/llm-wiki python \
   --root /project/knowledge
 ```
 
-CLI options `--root`, `--audit-db`, `--task-id` override `LLM_WIKI_ROOT`, `LLM_WIKI_AUDIT_DB`, `LLM_WIKI_TASK_ID`. Relative CLI paths resolve from the host process working directory. No HTTP listener, remote authentication or write tools are provided.
+CLI options `--root`, `--audit-db`, `--task-id` override `LLM_WIKI_ROOT`, `LLM_WIKI_AUDIT_DB`, `LLM_WIKI_TASK_ID`. `--usage-purpose`, `--execution-origin`, and `--agent-role` configure process defaults, with corresponding `LLM_WIKI_USAGE_PURPOSE`, `LLM_WIKI_EXECUTION_ORIGIN`, and `LLM_WIKI_AGENT_ROLE` environment variables. Each call's explicit argument overrides that default. Use defaults only when they apply to every call served by the process; shared interactive/automation servers should declare labels per call.
+
+Relative CLI paths resolve from the host process working directory. The usage hook's per-user `usage.json` root is separate from MCP root discovery; configure both to the same wiki when the process starts elsewhere. No HTTP listener, remote authentication or write tools are provided by the MCP server.
+
+Install updates through the runtime's plugin manager: `codex plugin add llm-wiki@llm-wiki` or `claude plugin update llm-wiki@llm-wiki`, after updating the local clone or Git marketplace source. Keep configured MCP paths on a stable installation. A new process is required for changed schemas, and new or changed Codex hooks require review in `/hooks`; installation alone does not activate trusted collection. Do not manually patch installed caches or trust hashes.
+
+To inspect a fresh server's actual tool schema, send `[]` to `examples/mcp_query.py --root /absolute/path/to/knowledge` through the plugin's locked Python runtime. Then call `wiki_info` with explicit labels, check the returned root and `audit` fields, and inspect a filtered `wiki_usage` report. Test a real runtime hook separately, including nested MCP calls when using code mode; directly invoking a hook script tests parsing but does not prove runtime delivery.
 
 For offline use, preinstall the locked environment while connected and launch its Python executable directly; the default first-launch `uv` bootstrap may require network access.
 
@@ -83,4 +128,8 @@ project to serve the bundled Blueprint.js UI at `http://127.0.0.1:8766`.
 This is a separate loopback HTTP process, not an MCP tool. It reads the same audit
 SQLite database; use `--audit-db` if MCP uses a custom location. Dashboard requests
 never create MCP audit events. It provides tool descriptions/counts, task/time
-filters, event details, the index, canonical pages, and linked original previews.
+filters, purpose/origin/role/classification-source filters, scan and timing metrics,
+event details, the index, canonical pages, and linked original previews. The initial
+purpose filter is `knowledge_lookup`; choose all purposes to see maintenance,
+diagnostics, and historical `unknown` records. Classification source describes how
+a purpose label was obtained, not confidence that the model understood a document.

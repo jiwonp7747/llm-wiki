@@ -17,11 +17,13 @@ Use `<git-root>/knowledge` when a Git root exists; otherwise use `<cwd>/knowledg
 
 - **Initialize**: Run `scripts/init_wiki.py`, inspect the generated schema, then validate.
 - **Ingest**: Run `scripts/intake_source.py` first. Read the new source and existing `wiki/index.md`; update the source note and all affected canonical pages; rebuild the index; record the source as ingested; validate.
-- **Query**: Prefer the read-only `wiki_info`, `wiki_list`, `wiki_search`, `wiki_read`, and `wiki_sources` MCP tools when available. Read `references/mcp.md` for paging, source access, and usage accounting. Use a consistent task label; never claim shell fallback reads were counted. Route through `wiki/index.md`, verify claims against source notes or immutable originals, answer with page/source references, and save durable synthesis only when requested or clearly useful.
+- **Query**: Prefer the read-only `wiki_info`, `wiki_list`, `wiki_search`, `wiki_read`, and `wiki_sources` MCP tools when available. Read `references/mcp.md` for paging, source access, and usage accounting. Keep a consistent `task_id` and declare `usage_purpose` on every call: `knowledge_lookup` for answering or decision support, `maintenance` for wiki upkeep, or `diagnostic` for tool checks. Declare `execution_origin` (`interactive`, `automation`, or `background`) and `agent_role` (`root` or `subagent`) independently when known. Use `unknown` when the context is unclear; never infer purpose from a task name. Route through `wiki/index.md`, verify claims against source notes or immutable originals, answer with page/source references, and save durable synthesis only when requested or clearly useful. Shell fallback reads are not MCP usage.
 - **Lint**: Run `scripts/validate_wiki.py` and `scripts/build_index.py --check` first, then inspect semantic contradictions, stale claims, duplicate concepts, missing cross-links, and coverage gaps. Validation also checks optional `tags` against `tags.json` when the wiki defines one.
 - **Log**: Use `scripts/append_log.py` for query, lint, and maintenance events. Intake and source-status scripts log automatically.
 
 Read [references/workflows.md](references/workflows.md) before ingesting or linting. Read [references/schema.md](references/schema.md) when creating or changing page metadata. Read [references/architecture.md](references/architecture.md) when initializing or adapting the directory model. Read [references/hooks.md](references/hooks.md) when changing plugin hooks.
+
+Use the purpose of each individual call when a task combines answering, maintenance, and diagnostics. `wiki_usage` takes `filter_purpose`, `filter_execution_origin`, and `filter_agent_role` to select stored events; its own `usage_purpose`, `execution_origin`, and `agent_role` label the report call. Hooks can add runtime correlation after trust and fresh-session verification, but do not prove understanding or answer usefulness.
 
 ## Preserve trust boundaries
 

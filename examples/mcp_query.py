@@ -60,12 +60,21 @@ async def main():
     parser.add_argument("--root", required=True)
     parser.add_argument("--audit-db")
     parser.add_argument("--task-id")
+    parser.add_argument("--usage-purpose", choices=("knowledge_lookup", "maintenance", "diagnostic", "unknown"))
+    parser.add_argument("--execution-origin", choices=("interactive", "automation", "background", "unknown"))
+    parser.add_argument("--agent-role", choices=("root", "subagent", "unknown"))
     parser.add_argument("--follow-cursor", action="store_true",
                         help="Follow wiki_read next_cursor and print one combined result")
     args = parser.parse_args()
     calls = json.load(sys.stdin)
     if isinstance(calls, dict):
         calls = [calls]
+    for call in calls:
+        arguments = call.setdefault("arguments", {})
+        for key in ("usage_purpose", "execution_origin", "agent_role"):
+            value = getattr(args, key)
+            if value is not None:
+                arguments.setdefault(key, value)
     server = Path(__file__).resolve().parents[1] / "plugins/llm-wiki/mcp/server.py"
     command = [str(server), "--root", args.root]
     if args.audit_db:

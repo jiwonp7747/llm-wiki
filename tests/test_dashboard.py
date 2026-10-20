@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import unittest
+from contextlib import closing
 import test_mcp as fixtures
 
 if fixtures.AVAILABLE:
@@ -34,9 +35,128 @@ class DashboardTests(unittest.TestCase):
             response=self.client.get('/api/'+endpoint, params=args)
             self.assertEqual(response.status_code,200,response.text)
             self.assertNotIn('_documents',response.json())
+            self.assertNotIn('_metrics',response.json())
         after = self.service.wiki_usage()
         self.assertEqual(before['calls'], after['calls'])
         self.assertEqual(before['unique_body_read_documents'], after['unique_body_read_documents'])
+
+    def record_usage(self, purpose='unknown', origin='unknown', role='unknown', source='unknown',
+                     path='wiki/concepts/example.md', **metadata):
+        self.service.call('wiki_read', {'path': path, 'task_id': 'shared'})
+        fields = {'purpose': purpose, 'execution_origin': origin, 'agent_role': role,
+                  'classification_source': source, **metadata}
+        with closing(self.service._connect()) as db, db:
+            event_id = db.execute('SELECT max(id) FROM events').fetchone()[0]
+            db.execute('UPDATE events SET ' + ','.join(f'{key}=?' for key in fields) + ' WHERE id=?',
+                       [*fields.values(), event_id])
+        return event_id
+
+    def test_purpose_origin_role_and_evidence_filters_agree_for_all_views(self):
+        for _ in range(10):
+            self.record_usage('maintenance', 'automation', 'subagent', 'inherited')
+        self.record_usage('knowledge_lookup', 'automation', 'root', 'explicit')
+        self.record_usage('knowledge_lookup', 'interactive', 'subagent', 'explicit')
+        self.record_usage('diagnostic', 'interactive', 'root', 'explicit')
+        self.record_usage('knowledge_lookup', 'interactive', 'root', 'legacy_inferred')
+        self.service.call('wiki_read', {'path': 'wiki/concepts/example.md'})
+        scopes = [({'purpose': 'maintenance'}, 10),
+                  ({'purpose': 'knowledge_lookup'}, 3),
+                  ({'purpose': 'knowledge_lookup', 'execution_origin': 'automation'}, 1),
+                  ({'purpose': 'knowledge_lookup', 'agent_role': 'subagent'}, 1),
+                  ({'purpose': 'knowledge_lookup', 'classification_source': 'explicit'}, 2),
+                  ({'purpose': 'unknown'}, 1), ({'purpose': 'diagnostic'}, 1), ({}, 15)]
+        for scope, expected in scopes:
+            with self.subTest(scope=scope):
+                overview = self.client.get('/api/overview', params=scope).json()
+                events = self.client.get('/api/events', params=scope).json()
+                pages = self.client.get('/api/pages', params={**scope, 'query': 'example'}).json()
+                self.assertEqual(overview['totals']['calls'], expected)
+                self.assertEqual(overview['totals']['body_reads'], expected)
+                self.assertEqual(events['total'], expected)
+                self.assertEqual(pages['items'][0]['reads'], expected)
+                self.assertEqual(sum(overview['purpose_counts'].values()), expected)
+                self.assertEqual(sum(overview['classification_counts'].values()), expected)
+        overview = self.client.get('/api/overview').json()
+        self.assertEqual(overview['purpose_counts'], {
+            'knowledge_lookup': 3, 'maintenance': 10, 'diagnostic': 1, 'unknown': 1})
+        self.assertEqual(overview['classification_counts']['legacy_inferred'], 1)
+
+    def test_event_metadata_and_legacy_unknown_are_preserved(self):
+        self.service.call('wiki_read', {'path': 'wiki/concepts/example.md'})
+        legacy = self.client.get('/api/events', params={'purpose': 'unknown'}).json()['items'][0]
+        self.assertEqual(legacy['classification_source'], 'unknown')
+        self.record_usage('knowledge_lookup', 'interactive', 'root', 'explicit',
+            duration_ms=1.25, result_count=1, scanned_files=2, scanned_bytes=90,
+            client='codex', chat_id='chat', turn_id='turn', tool_use_id='tool-use')
+        event = self.client.get('/api/events', params={'purpose': 'knowledge_lookup'}).json()['items'][0]
+        self.assertEqual(event['duration_ms'], 1.25)
+        self.assertEqual((event['result_count'], event['scanned_files'], event['scanned_bytes']), (1, 2, 90))
+        self.assertEqual((event['client'], event['chat_id'], event['turn_id'], event['tool_use_id']),
+                         ('codex', 'chat', 'turn', 'tool-use'))
+
+    def test_classification_filter_validation_is_shared(self):
+        for endpoint in ('overview', 'events', 'pages'):
+            for key in ('purpose', 'execution_origin', 'agent_role', 'classification_source'):
+                with self.subTest(endpoint=endpoint, key=key):
+                    response = self.client.get('/api/' + endpoint, params={key: "' OR 1=1--"})
+                    self.assertEqual(response.status_code, 400)
+                    self.assertEqual(response.json()['error'], f'Invalid {key}')
+
+    def test_turn_counts_require_exact_links_and_preserve_mixed_purposes(self):
+        identity = {'client': 'codex', 'chat_id': 'chat', 'turn_id': 'mixed'}
+        self.record_usage('maintenance', 'automation', 'subagent', 'explicit', **identity)
+        for _ in range(2):
+            self.record_usage('knowledge_lookup', 'interactive', 'root', 'explicit', **identity)
+        self.record_usage('knowledge_lookup', 'interactive', 'root', 'explicit',
+                          path='wiki/index.md', client='codex', chat_id='chat', turn_id='index-only')
+        self.service.call('wiki_read', {'path': 'wiki/concepts/example.md'})
+        with closing(self.service._connect()) as db, db:
+            db.executescript('''
+                CREATE TABLE IF NOT EXISTS hook_turns (
+                    client TEXT, chat_id TEXT, turn_id TEXT, started_at TEXT, ended_at TEXT,
+                    status TEXT, purpose TEXT, execution_origin TEXT, agent_role TEXT,
+                    classification_source TEXT, parent_chat_id TEXT, parent_turn_id TEXT, agent_id TEXT,
+                    PRIMARY KEY(client,chat_id,turn_id));
+                CREATE TABLE IF NOT EXISTS hook_citations (
+                    client TEXT,chat_id TEXT,turn_id TEXT,path TEXT,
+                    PRIMARY KEY(client,chat_id,turn_id,path));
+            ''')
+            for turn in ('mixed', 'index-only', 'no-call'):
+                db.execute('INSERT INTO hook_turns '
+                    '(client,chat_id,turn_id,started_at,status,purpose,execution_origin,agent_role,classification_source) '
+                    'VALUES(?,?,?,?,?,?,?,?,?)', ('codex', 'chat', turn, '2026-10-21T00:00:00+00:00',
+                        'completed', 'unknown', 'unknown', 'unknown', 'unknown'))
+            db.executemany('INSERT INTO hook_citations VALUES(?,?,?,?)', [
+                ('codex', 'chat', 'mixed', 'wiki/concepts/example.md'),
+                ('codex', 'chat', 'index-only', 'wiki/index.md'),
+                ('codex', 'chat', 'no-call', 'wiki/concepts/example.md')])
+        knowledge = self.client.get('/api/overview', params={'purpose': 'knowledge_lookup'}).json()['turns']
+        maintenance = self.client.get('/api/overview', params={'purpose': 'maintenance'}).json()['turns']
+        unknown = self.client.get('/api/overview', params={'purpose': 'unknown'}).json()['turns']
+        for turns in (knowledge, maintenance):
+            self.assertTrue(turns['available'])
+            self.assertEqual(turns['canonical_read_turns'], 1)
+            self.assertEqual(turns['canonical_read_documents'], 1)
+            self.assertEqual(turns['citation_turns'], 1)
+            self.assertEqual(turns['hook_only_turns'], 0)
+        self.assertEqual(knowledge['observed_turns'], 2)
+        self.assertEqual(maintenance['observed_turns'], 1)
+        self.assertEqual(unknown['hook_only_turns'], 1)
+        self.assertEqual(unknown['observed_turns'], 1)
+        self.assertEqual(unknown['canonical_read_turns'], 0)
+        self.assertEqual(unknown['unlinked_events'], 1)
+        self.assertEqual(unknown['citation_turns'], 1)
+        scoped = self.client.get('/api/overview', params={'purpose': 'unknown', 'task_id': 'other'}).json()['turns']
+        self.assertEqual(scoped['hook_only_turns'], 0)
+
+    def test_turn_metrics_are_explicit_when_hook_tables_are_absent(self):
+        self.record_usage('knowledge_lookup', 'interactive', 'root', 'explicit',
+                          client='codex', chat_id='chat', turn_id='turn')
+        result = self.client.get('/api/overview', params={'purpose': 'knowledge_lookup'}).json()['turns']
+        self.assertFalse(result['available'])
+        self.assertEqual(result['canonical_read_turns'], 1)
+        self.assertIsNone(result['citation_turns'])
+        self.assertIsNone(result['observed_turns'])
 
     def test_summary_zero_tools_counts_last_call_and_exact_task_filter(self):
         initial=self.client.get('/api/overview').json()

@@ -7,6 +7,11 @@ import '@blueprintjs/core/lib/css/blueprint.css';
 import './style.css';
 
 const labels = {wiki_info:'위키 안내', wiki_list:'문서 목록', wiki_search:'내용 검색', wiki_read:'본문 읽기', wiki_sources:'원본 추적', wiki_usage:'사용 현황'};
+const purposes = {knowledge_lookup:'지식 활용', maintenance:'유지보수', diagnostic:'진단', unknown:'미분류'};
+const origins = {interactive:'일반 대화', automation:'예약 실행', background:'백그라운드', unknown:'미확인'};
+const roles = {root:'상위 에이전트', subagent:'서브에이전트', unknown:'미확인'};
+const classifications = {explicit:'명시', inherited:'상속', legacy_inferred:'과거 추정', unknown:'미확인'};
+const options = (labels, all) => [{value:'',label:all},...Object.entries(labels).map(([value,label])=>({value,label}))];
 const fmt = value => value ? new Date(value).toLocaleString('ko-KR') : '—';
 const num = n => Number(n || 0).toLocaleString('ko-KR');
 async function api(name, params={}, signal) {
@@ -96,6 +101,13 @@ function Tools({data}) {
       <details><summary>도구 설명과 인자</summary><p className="description">{t.description}</p><pre className="raw">{JSON.stringify(t.inputSchema,null,2)}</pre></details>
     </Card>)}</div></>;
 }
+function ScopeSummary({data,purpose}) {
+  return <section className="scope-summary" aria-label="선택 범위의 분류 현황"><div><strong>{purpose?purposes[purpose]:'모든 목적'} · 선택 범위의 호출</strong><div className="purpose-counts">{Object.entries(purposes).map(([key,label])=><span key={key}>{label} <b>{num(data.purpose_counts[key])}</b></span>)}</div></div><div className="classification-counts"><span>분류 근거</span>{Object.entries(classifications).map(([key,label])=><span key={key}>{label} {num(data.classification_counts[key])}</span>)}</div><p>이전 기록의 목적은 미분류로 보존합니다. 분류는 선언된 메타데이터이며 실제 의도나 답변 활용을 증명하지 않습니다.</p></section>;
+}
+function TurnMetrics({data}) {
+  const entries=[['정본 본문 조회 턴',data.canonical_read_turns],['턴별 고유 정본',data.canonical_read_documents],['정본 인용 관측 턴',data.citation_turns],['관측한 턴',data.observed_turns]];
+  return <section className="turn-summary" aria-label="연결된 턴의 위키 활용"><div className="turn-counts">{entries.map(([label,value])=><div key={label}><span>{label}</span><strong>{value==null?'미관측':num(value)}</strong></div>)}</div><p>대화·턴 ID로 연결된 기록만 집계합니다. 같은 턴의 여러 목적은 각 보기에 포함되므로 보기 간 합계가 겹칠 수 있습니다. 정본 여부는 현재 문서 상태를 기준으로 확인합니다.</p><p>{data.available?`이번 턴 호출 관측 없음 ${num(data.hook_only_turns)}턴 · `:'훅 관측 데이터가 아직 없습니다. '}턴 미연결 호출 {num(data.unlinked_events)}회</p>{data.skipped_document_count>0&&<p className="danger">접근·크기 제한으로 {num(data.skipped_document_count)}개 문서의 정본 여부를 확인하지 못했습니다.</p>}</section>;
+}
 function Pages({filters,tick,open}) {
   const [query,setQuery]=useState(''),[type,setType]=useState(''),[status,setStatus]=useState('canonical'),[unread,setUnread]=useState(false),[offset,setOffset]=useState(0);
   const state=useData('pages',{...filters,query,page_type:type,status,unread,offset,limit:25},tick);
@@ -111,7 +123,9 @@ function Events({filters,tick,open}) {
   useEffect(()=>setOffset(0),[tool,outcome,JSON.stringify(filters)]);
   return <><div className="section-heading"><div><h2>호출 타임라인</h2><p>최근 호출부터 표시합니다. 펼치면 경로·조회 범위·오류를 확인할 수 있습니다.</p></div></div>
     <div className="page-filters"><HTMLSelect aria-label="타임라인 도구" value={tool} onChange={e=>setTool(e.target.value)} options={[{value:'',label:'모든 도구'},...Object.keys(labels).map(v=>({value:v,label:v}))]}/><HTMLSelect aria-label="호출 결과" value={outcome} onChange={e=>setOutcome(e.target.value)} options={[{value:'',label:'모든 결과'},{value:'success',label:'성공'},{value:'failure',label:'실패'}]}/></div>
-    <Status state={state}/>{state.data&&<><div className="timeline">{state.data.items.map(e=><details className="event" key={e.id}><summary><span className={'dot '+(e.success?'ok':'bad')}/><code>{e.tool}</code><Tag minimal intent={e.success?'success':'danger'}>{e.success?'성공':'실패'}</Tag><span className="task-name">{e.task_id||'작업 이름 없음'}</span><time>{fmt(e.time)}</time></summary><div className="event-body"><p className="muted">호출 #{e.id} · 서버 세션 {e.session_id}</p>
+    <Status state={state}/>{state.data&&<><div className="timeline">{state.data.items.map(e=><details className="event" key={e.id}><summary><span className={'dot '+(e.success?'ok':'bad')}/><code>{e.tool}</code><Tag minimal intent={e.success?'success':'danger'}>{e.success?'성공':'실패'}</Tag><Tag minimal>{purposes[e.purpose]||'미분류'}</Tag><span className="task-name">{e.task_id||'작업 이름 없음'}</span><time>{fmt(e.time)}</time></summary><div className="event-body"><p className="muted">호출 #{e.id} · 서버 세션 {e.session_id}</p>
+      <div className="event-classification"><Tag minimal>{origins[e.execution_origin]||'실행 기원 미확인'}</Tag><Tag minimal>{roles[e.agent_role]||'수행 역할 미확인'}</Tag><Tag minimal intent={e.classification_source==='legacy_inferred'?'warning':undefined}>분류 근거: {classifications[e.classification_source]||'미확인'}</Tag></div>
+      <dl className="event-metadata">{[['서비스 처리시간',e.duration_ms==null?'미측정':`${num(e.duration_ms)} ms`],['반환 수',e.result_count==null?'미측정':num(e.result_count)],['스캔 파일',e.scanned_files==null?'미측정':num(e.scanned_files)],['스캔 바이트',e.scanned_bytes==null?'미측정':num(e.scanned_bytes)],['클라이언트',e.client],['대화 ID',e.chat_id],['턴 ID',e.turn_id],['도구 호출 ID',e.tool_use_id]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value??'미연결'}</dd></div>)}</dl>
       {!e.success&&<Callout intent="danger" title={e.detail.error_type||'호출 실패'}>{e.detail.error_message||'이전 기록에는 오류 종류만 저장되어 있습니다.'}</Callout>}
       {e.truncated===1&&<Tag intent="warning" minimal>결과 잘림 / 다음 페이지 있음</Tag>}
       {e.documents.map((d,i)=><div className="event-doc" key={i}><button className="text-link" onClick={()=>open(d.path)}>{d.path}</button><span>{d.kind}</span>{d.start_line&&<small>{d.start_line}–{d.end_line}행 · {d.sha256?.slice(0,12)}</small>}</div>)}
@@ -127,20 +141,22 @@ function Index({open,tick}) {
 }
 function App() {
   const [tab,setTab]=useState('tools'),[period,setPeriod]=useState('all'),[task,setTask]=useState(''),[from,setFrom]=useState(''),[until,setUntil]=useState(''),[tick,setTick]=useState(0),[auto,setAuto]=useState(false),[history,setHistory]=useState([]);
+  const [purpose,setPurpose]=useState('knowledge_lookup'),[origin,setOrigin]=useState(''),[role,setRole]=useState(''),[classification,setClassification]=useState('');
   useEffect(()=>{if(auto){const id=setInterval(()=>setTick(t=>t+1),30000);return()=>clearInterval(id)}},[auto]);
   const now=new Date(); let since;
   if(period==='today'){now.setHours(0,0,0,0);since=now.toISOString()}
   if(period==='7'||period==='30'){now.setDate(now.getDate()-Number(period));now.setHours(0,0,0,0);since=now.toISOString()}
-  const filters={task_id:task,since:period==='custom'&&from?new Date(from).toISOString():since,until:period==='custom'&&until?new Date(until).toISOString():undefined};
+  const filters={purpose,execution_origin:origin,agent_role:role,classification_source:classification,task_id:task,since:period==='custom'&&from?new Date(from).toISOString():since,until:period==='custom'&&until?new Date(until).toISOString():undefined};
   const overview=useData('overview',filters,tick);
   const open=path=>setHistory(h=>h.at(-1)===path?h:[...h,path]);
   const data=overview.data;
   return <div className="shell"><aside className="sidebar"><div className="brand"><span className="brand-symbol">W</span><div>LLM WIKI<small>KNOWLEDGE OBSERVATORY</small></div></div><div className="nav-label">WORKSPACE</div><nav>{[['tools','도구 사용 현황','◈'],['index','인덱스','☷'],['pages','정본과 문서','▤'],['events','호출 타임라인','◷']].map(([id,title,icon])=><button key={id} aria-current={tab===id?'page':undefined} className={tab===id?'active':''} onClick={()=>setTab(id)}><span>{icon}</span>{title}</button>)}</nav><div className="sidebar-bottom"><span className="live-dot"/> 로컬 · 읽기 전용<p>웹에서의 조회는<br/>MCP 사용량에 포함되지 않습니다.</p><button className="text-link" onClick={()=>open('SCHEMA.md')}>위키 관리 규칙 ↗</button></div></aside>
     <main><header><div><span className="eyebrow">LLM WIKI / OBSERVABILITY</span><h1>지식이 쓰이는 순간을 확인하세요.</h1><p className="root-path">{data?.info.root || '위키 연결 확인 중'}</p></div><Button onClick={()=>setTick(t=>t+1)}>새로고침</Button></header>
+      <div className="classification-filters"><label>조회 목적<HTMLSelect aria-label="조회 목적" value={purpose} onChange={e=>setPurpose(e.target.value)} options={options(purposes,'모든 목적')}/></label><label>실행 기원<HTMLSelect aria-label="실행 기원" value={origin} onChange={e=>setOrigin(e.target.value)} options={options(origins,'모든 실행 기원')}/></label><label>수행 역할<HTMLSelect aria-label="수행 역할" value={role} onChange={e=>setRole(e.target.value)} options={options(roles,'모든 수행 역할')}/></label><label>분류 근거<HTMLSelect aria-label="분류 근거" value={classification} onChange={e=>setClassification(e.target.value)} options={options(classifications,'모든 분류 근거')}/></label></div>
       <div className="filter-bar"><label>기간< HTMLSelect aria-label="기간" value={period} onChange={e=>setPeriod(e.target.value)} options={[{value:'all',label:'전체 기간'},{value:'today',label:'오늘'},{value:'7',label:'최근 7일'},{value:'30',label:'최근 30일'},{value:'custom',label:'직접 지정'}]}/></label><label className="task-filter">작업<InputGroup aria-label="작업 이름" list="tasks" placeholder="모든 작업 · task_id 입력" value={task} onChange={e=>setTask(e.target.value)}/><datalist id="tasks">{data?.tasks.map(t=><option key={t} value={t}/>)}</datalist></label><div className="spacer"/><Switch checked={auto} onChange={e=>setAuto(e.target.checked)} label="30초 자동 갱신"/></div>
       {period==='custom'&&<div className="custom-dates"><label>시작 (포함)<input type="datetime-local" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>종료 (미포함)<input type="datetime-local" value={until} onChange={e=>setUntil(e.target.value)}/></label></div>}
-      <Status state={overview}/>{data&&<div className="metrics">{[['총 도구 호출',data.totals.calls,'MCP 호출 기준'],['본문 조회',data.totals.body_reads,'반환한 문서 구간'],['고유 조회 문서',data.totals.unique_documents,'중복 경로 제외'],['실패한 호출',data.totals.failures,'서비스 오류 기준']].map(([title,value,hint])=><Card className="metric" key={title}><span>{title}</span><strong>{num(value)}</strong><small>{hint}</small></Card>)}</div>}
-      <section className="content">{tab==='tools'&&data&&<Tools data={data}/>} {tab==='pages'&&<Pages filters={filters} tick={tick} open={open}/>} {tab==='events'&&<Events filters={filters} tick={tick} open={open}/>} {tab==='index'&&<Index tick={tick} open={open}/>}</section>
+      <Status state={overview}/>{data&&<><ScopeSummary data={data} purpose={purpose}/><div className="metrics">{[['총 도구 호출',data.totals.calls,'선택 범위의 MCP 호출'],['본문 조회',data.totals.body_reads,'반환한 문서 구간'],['고유 조회 문서',data.totals.unique_documents,'중복 경로 제외'],['실패한 호출',data.totals.failures,'서비스 오류 기준']].map(([title,value,hint])=><Card className="metric" key={title}><span>{title}</span><strong>{num(value)}</strong><small>{hint}</small></Card>)}</div></>}
+      <section className="content">{tab==='tools'&&data&&<><TurnMetrics data={data.turns}/><Tools data={data}/></>} {tab==='pages'&&<Pages filters={filters} tick={tick} open={open}/>} {tab==='events'&&<Events filters={filters} tick={tick} open={open}/>} {tab==='index'&&<Index tick={tick} open={open}/>}</section>
       <footer>기록은 MCP 응답 준비를 나타냅니다. 셸 접근·모델의 이해·답변 반영 여부는 측정하지 않습니다. 시간은 브라우저의 현지 시간대로 표시합니다.</footer>
     </main>{history.length>0&&<Viewer key={history.at(-1)} path={history.at(-1)} open={open} back={history.length>1?()=>setHistory(h=>h.slice(0,-1)):null} close={()=>setHistory([])}/>}</div>;
 }

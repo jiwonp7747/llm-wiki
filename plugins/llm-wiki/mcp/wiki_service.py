@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import sqlite3
@@ -13,6 +12,9 @@ from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from usage_audit import (AGENT_ROLES, EXECUTION_ORIGINS, PURPOSES, audit_db_path,
+                         declared_context, ensure_schema)
 
 import regex
 
@@ -36,34 +38,24 @@ def discover_root(start: Path) -> Path:
 
 
 class WikiService:
-    def __init__(self, root: Path, audit_db: Path | None = None, task_id: str | None = None):
+    def __init__(self, root: Path, audit_db: Path | None = None, task_id: str | None = None,
+                 usage_purpose: str | None = None, execution_origin: str | None = None,
+                 agent_role: str | None = None):
         self.root = root.expanduser().resolve(strict=True)
         self.session_id = str(uuid.uuid4())
         self.task_id = task_id
+        self.usage_defaults = declared_context({"usage_purpose": usage_purpose,
+            "execution_origin": execution_origin, "agent_role": agent_role})
         self._path("SCHEMA.md")
         if audit_db is None:
-            state = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
-            key = hashlib.sha256(str(self.root).encode()).hexdigest()[:24]
-            audit_db = state / "llm-wiki" / key / "access.sqlite3"
+            audit_db = audit_db_path(self.root)
         self.audit_db = audit_db.expanduser().resolve()
         if self.audit_db.is_relative_to(self.root):
             raise ValueError("Audit database must be outside the wiki root")
         self.audit_db.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         with closing(self._connect()) as db, db:
-            db.executescript("""
-                CREATE TABLE IF NOT EXISTS wiki (root TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS events (
-                    id INTEGER PRIMARY KEY, time TEXT NOT NULL, session_id TEXT NOT NULL,
-                    task_id TEXT, tool TEXT NOT NULL, success INTEGER NOT NULL,
-                    truncated INTEGER NOT NULL, detail TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS documents (
-                    event_id INTEGER NOT NULL REFERENCES events(id), path TEXT NOT NULL,
-                    kind TEXT NOT NULL, sha256 TEXT, start_line INTEGER, end_line INTEGER,
-                    start_column INTEGER, end_column INTEGER);
-                CREATE INDEX IF NOT EXISTS events_filter ON events(time, task_id, session_id);
-                CREATE INDEX IF NOT EXISTS documents_event ON documents(event_id);
-            """)
             db.execute("BEGIN IMMEDIATE")
+            ensure_schema(db)
             registered = db.execute("SELECT root FROM wiki").fetchone()
             if registered and registered[0] != str(self.root):
                 raise ValueError("Audit database belongs to another wiki root")
@@ -132,7 +124,9 @@ class WikiService:
         return sorted(paths)
 
     def call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        started = time.perf_counter()
         args = dict(arguments)
+        context = declared_context(args, self.usage_defaults)
         task_id = args.pop("task_id", None) or self.task_id
         if task_id is not None and (not isinstance(task_id, str) or len(task_id) > 200):
             raise ValueError("task_id must be at most 200 characters")
@@ -142,26 +136,38 @@ class WikiService:
         try:
             result = getattr(self, tool)(**args)
             documents = result.pop("_documents", [])
+            metrics = result.pop("_metrics", {})
             if len(json.dumps(result, ensure_ascii=False)) > 64000:
                 raise ValueError("Result exceeds 64000 characters; reduce limit, context_lines or max_chars")
         except Exception as exc:
             # 파일 시스템 예외의 절대 경로나 입력 본문은 기록하지 않는다.
             message = str(exc)[:300] if isinstance(exc, ValueError) else "File unavailable" if isinstance(exc, OSError) else "Tool execution failed"
             self._record(tool, task_id, False, False,
-                         {"error_type": type(exc).__name__, "error_message": message}, [])
+                         {"error_type": type(exc).__name__, "error_message": message}, [],
+                         context, {"duration_ms": (time.perf_counter() - started) * 1000})
             raise
         detail = {key: result[key] for key in ("next_offset", "next_cursor", "skipped_count") if key in result}
         if "query" in args:
             detail["query_sha256"] = sha256_bytes(args["query"].encode())
-        event_id = self._record(tool, task_id, True, bool(result.get("truncated")), detail, documents)
-        return {**result, "audit": {"event_id": event_id, "session_id": self.session_id, "task_id": task_id}}
+        metrics["duration_ms"] = (time.perf_counter() - started) * 1000
+        metrics["result_count"] = next((len(result[key]) for key in ("items", "matches", "sources")
+                                         if isinstance(result.get(key), list)), len(documents))
+        event_id = self._record(tool, task_id, True, bool(result.get("truncated")), detail, documents,
+                                context, metrics)
+        return {**result, "metrics": metrics, "audit": {"event_id": event_id,
+                "session_id": self.session_id, "task_id": task_id, "root": str(self.root), **context}}
 
-    def _record(self, tool, task_id, success, truncated, detail, documents) -> int:
+    def _record(self, tool, task_id, success, truncated, detail, documents, context, metrics) -> int:
         with closing(self._connect()) as db, db:
             cursor = db.execute(
-                "INSERT INTO events(time,session_id,task_id,tool,success,truncated,detail) VALUES(?,?,?,?,?,?,?)",
+                "INSERT INTO events(time,session_id,task_id,tool,success,truncated,detail,purpose,execution_origin,"
+                "agent_role,classification_source,duration_ms,result_count,scanned_files,scanned_bytes) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (datetime.now(timezone.utc).isoformat(), self.session_id, task_id, tool,
-                 success, truncated, json.dumps(detail, ensure_ascii=False)),
+                 success, truncated, json.dumps(detail, ensure_ascii=False), context["purpose"],
+                 context["execution_origin"], context["agent_role"], context["classification_source"],
+                 metrics.get("duration_ms"), metrics.get("result_count"), metrics.get("scanned_files"),
+                 metrics.get("scanned_bytes")),
             )
             event_id = cursor.lastrowid
             for doc in documents:
@@ -178,6 +184,8 @@ class WikiService:
             "categories": sorted(p.name for p in (self.root / "wiki").iterdir()
                                  if p.is_dir() and not p.is_symlink()),
             "read_only": True, "audit_db": str(self.audit_db),
+            "usage_classification": {"purposes": list(PURPOSES), "execution_origins": list(EXECUTION_ORIGINS),
+                                     "agent_roles": list(AGENT_ROLES), "defaults": self.usage_defaults},
             "limits": {"file_bytes": MAX_FILE_BYTES, "scan_bytes": MAX_SCAN_BYTES, "pages": MAX_FILES,
                        "read_characters": 12000, "max_read_characters": 24000},
             "accounting": "MCP results prepared for delivery; not proof of model understanding. Shell reads are excluded.",
@@ -193,8 +201,9 @@ class WikiService:
 
     def wiki_list(self, path_prefix="wiki/", page_type=None, tag=None, offset=0, limit=20) -> dict:
         self._pagination(offset, limit)
-        items, skipped, scanned = [], [], 0
+        items, skipped, scanned, scanned_files = [], [], 0, 0
         for path in self._pages(path_prefix):
+            scanned_files += 1
             try:
                 text, digest, size = self._text(path)
             except ValueError:
@@ -218,6 +227,7 @@ class WikiService:
         next_offset = offset + len(page) if offset + len(page) < len(items) else None
         return {"items": page, "total": len(items), "next_offset": next_offset,
                 "truncated": next_offset is not None, "skipped": skipped[:20], "skipped_count": len(skipped),
+                "_metrics": {"scanned_files": scanned_files, "scanned_bytes": scanned},
                 "_documents": [{**item, "kind": "listed"} for item in page]}
 
     def wiki_search(self, query: str, path_prefix="wiki/", use_regex=False, case_sensitive=False,
@@ -229,10 +239,11 @@ class WikiService:
             raise ValueError("context_lines must be 0..2")
         pattern = regex.compile(query if use_regex else regex.escape(query),
                                 0 if case_sensitive else regex.IGNORECASE)
-        matches, skipped, seen, scanned = [], [], 0, 0
+        matches, skipped, seen, scanned, scanned_files = [], [], 0, 0, 0
         deadline = time.monotonic() + 5
         more = False
         for path in self._pages(path_prefix):
+            scanned_files += 1
             try:
                 text, digest, size = self._text(path)
             except ValueError:
@@ -270,6 +281,7 @@ class WikiService:
                 break
         return {"matches": matches, "next_offset": offset + len(matches) if more else None,
                 "truncated": more, "skipped": skipped[:20], "skipped_count": len(skipped),
+                "_metrics": {"scanned_files": scanned_files, "scanned_bytes": scanned},
                 "_documents": [{**item, "kind": "search_hit"} for item in matches]}
 
     def wiki_read(self, path: str, start_line=1, line_count=100, start_column=0,
@@ -278,7 +290,7 @@ class WikiService:
             raise ValueError("Unsupported cursor argument; pass next_cursor.start_line and start_column as top-level arguments")
         if not 1 <= start_line or not 1 <= line_count <= 200 or start_column < 0 or not 1 <= max_chars <= 24000:
             raise ValueError("Invalid read bounds: lines 1-based, count 1..200, column >=0, chars 1..24000")
-        text, digest, _ = self._text(path)
+        text, digest, size = self._text(path)
         if expected_sha256 is not None and expected_sha256 != digest:
             raise ValueError("Document changed; restart reading without the old expected_sha256")
         lines = text.splitlines(keepends=True)
@@ -306,6 +318,7 @@ class WikiService:
                 "start_line": start_line, "start_column": start_column,
                 "end_line": last_line, "end_column": last_column,
                 "next_cursor": cursor, "truncated": cursor is not None,
+                "_metrics": {"scanned_files": 1, "scanned_bytes": size},
                 "_documents": [doc] if parts else []}
 
     def wiki_sources(self, path=None, source_id=None, offset=0, limit=20) -> dict:
@@ -352,9 +365,18 @@ class WikiService:
         return {"sources": items, "total": len(ids), "next_offset": offset + len(items) if more else None,
                 "truncated": more, "_documents": documents}
 
-    def wiki_usage(self, filter_task_id=None, session_id=None, since=None, until=None, offset=0, limit=20) -> dict:
+    def wiki_usage(self, filter_task_id=None, session_id=None, since=None, until=None, offset=0, limit=20,
+                   filter_purpose=None, filter_execution_origin=None, filter_agent_role=None) -> dict:
         self._pagination(offset, limit)
         clauses, parameters = [], []
+        for field, value, allowed in (("purpose", filter_purpose, PURPOSES),
+                                       ("execution_origin", filter_execution_origin, EXECUTION_ORIGINS),
+                                       ("agent_role", filter_agent_role, AGENT_ROLES)):
+            if value is not None:
+                if value not in allowed:
+                    raise ValueError(f"Invalid {field} filter")
+                clauses.append(f"e.{field}=?")
+                parameters.append(value)
         for field, value in (("task_id", filter_task_id), ("session_id", session_id)):
             if value is not None:
                 clauses.append(f"e.{field}=?")
@@ -371,6 +393,8 @@ class WikiService:
             db.execute("BEGIN")
             counts = [dict(row) for row in db.execute(
                 "SELECT tool, success, count(*) AS calls FROM events e" + where + " GROUP BY tool, success", parameters)]
+            purpose_counts = [dict(row) for row in db.execute(
+                "SELECT purpose,count(*) AS calls FROM events e" + where + " GROUP BY purpose", parameters)]
             docs_query = " FROM documents d JOIN events e ON e.id=d.event_id" + where
             total = db.execute("SELECT count(DISTINCT path)" + docs_query, parameters).fetchone()[0]
             docs = [dict(row) for row in db.execute(
@@ -392,6 +416,7 @@ class WikiService:
                 recent.append(event)
         more = offset + len(docs) < total
         return {"scope": "MCP results prepared for delivery only; excludes shell reads and this usage call",
-                "calls": counts, "unique_body_read_documents": unique_reads, "documents": docs,
+                "calls": counts, "purpose_counts": purpose_counts,
+                "unique_body_read_documents": unique_reads, "documents": docs,
                 "total_documents": total, "recent_events": recent,
                 "next_offset": offset + len(docs) if more else None, "truncated": more}

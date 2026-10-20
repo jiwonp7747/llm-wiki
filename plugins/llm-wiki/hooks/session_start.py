@@ -33,7 +33,7 @@ def main() -> int:
         "before changing it. Use the llm-wiki skill for ingest, query, index, log, "
         "and lint operations. Preserve sources as immutable evidence. "
         "When available, prefer wiki_info/wiki_search/wiki_read/wiki_sources MCP tools for "
-        "navigation and evidence, with a consistent task_id. MCP usage excludes shell reads."
+        "navigation and evidence, with a consistent task_id. Declare usage_purpose as knowledge_lookup, maintenance or diagnostic; keep execution_origin and agent_role separate. Undeclared purpose remains unknown. MCP usage excludes shell reads."
     )
     print(
         json.dumps(
