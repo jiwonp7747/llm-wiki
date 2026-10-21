@@ -37,7 +37,7 @@ The plugin is separate from the knowledge it manages. Upgrading the plugin never
 - A repo marketplace for installation from GitHub.
 - Read-only MCP tools for info, listing, search, text reading, source resolution and usage reports.
 - Per-call usage purpose, execution origin, and agent role, with a local dashboard for separate usage views.
-- Optional local hooks that correlate turns, tools, subagents, and canonical-page citations with existing MCP events.
+- One local `PostToolUse` observation hook that correlates Wiki MCP events with chat and tool-call identifiers.
 - Unit tests and GitHub Actions validation.
 
 ## Install in Codex
@@ -148,13 +148,13 @@ Use `knowledge_lookup` to answer a question or inform a decision, `maintenance` 
 
 The dashboard opens with the `knowledge_lookup` view and provides purpose, origin, role, and classification-source filters. Existing records migrate to `unknown`; the upgrade does not guess their intent. [Accounting details and filter examples](plugins/llm-wiki/skills/llm-wiki/references/mcp.md#accounting)
 
-To observe lifecycle events from projects outside the wiki, configure the hooks with an absolute wiki root in `$XDG_CONFIG_HOME/llm-wiki/usage.json` (default `~/.config/llm-wiki/usage.json`):
+To correlate Wiki MCP calls from projects outside the wiki, configure the usage hook with an absolute wiki root in `$XDG_CONFIG_HOME/llm-wiki/usage.json` (default `~/.config/llm-wiki/usage.json`):
 
 ```json
 {"root":"/absolute/path/to/knowledge"}
 ```
 
-The hook also accepts `LLM_WIKI_ROOT` or a `--root` argument. The MCP server must point at that same wiki. Hook observations store allowlisted metadata and canonical link targets locally, and correlate exact MCP audit IDs instead of counting a second tool call. They do not read transcripts or retain raw prompts and answers. Collection starts only when the runtime loads and permits the hooks; confirm a fresh-session event before reporting it as active. [Hook configuration and limits](plugins/llm-wiki/skills/llm-wiki/references/hooks.md)
+The hook also accepts `LLM_WIKI_ROOT` or a `--root` argument. The MCP server must point at that same wiki. The bundled map has three handlers: startup context, stop validation, and Wiki-only `PostToolUse` correlation. Usage observations store allowlisted identifiers locally and correlate exact MCP audit IDs instead of counting a second tool call. Prompt, completion, subagent, interruption, and session-end usage hooks are not registered; total-question rates and answer citations are not collected by this minimal map. They do not read transcripts or retain raw prompts and answers. Collection starts only when the runtime loads and permits the hooks; confirm a fresh-session event before reporting it as active. [Hook configuration and limits](plugins/llm-wiki/skills/llm-wiki/references/hooks.md)
 
 ## Python helpers
 

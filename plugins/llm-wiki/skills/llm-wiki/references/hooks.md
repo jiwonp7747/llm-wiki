@@ -7,8 +7,9 @@ the plugin-root environment variable:
 - `hooks/claude-hooks.json` — `${CLAUDE_PLUGIN_ROOT}`, named by the `hooks` field
   of `.claude-plugin/plugin.json` for Claude Code.
 
-Keep the two files in sync for events supported by both runtimes. Codex additionally
-supports the `Interrupt` observation; the Claude map omits it.
+Both maps register exactly three handlers: `SessionStart` context, `Stop`
+validation, and Wiki-only `PostToolUse` correlation. No prompt, completion,
+subagent, interruption, or session-end usage observations are registered.
 
 ## SessionStart
 
@@ -20,7 +21,7 @@ If a wiki exists, the hook runs `validate_wiki.py --json`. It never edits files 
 
 ## Optional local usage observation
 
-`hooks/wiki_usage.py --client codex` or `--client claude` observes lifecycle
+`hooks/wiki_usage.py --client codex` or `--client claude` observes Wiki tool-call
 metadata in the same local SQLite database used by the configured wiki's MCP
 server. It is separate from the existing startup context and stop validation.
 An unconfigured usage hook exits successfully without recording anything.
@@ -48,19 +49,19 @@ hook or provide `LLM_WIKI_AUDIT_DB` in its environment. The CLI argument takes
 precedence. Otherwise the hook uses the default root-specific audit database
 described in [MCP accounting](mcp.md#accounting).
 
-The maps observe `UserPromptSubmit`, `PostToolUse`, `Stop`, `SubagentStart`,
-`SubagentStop`, and `SessionEnd`; Codex also observes `Interrupt`. Normal usage
-observations run asynchronously. Session end and interruption use a one-second
-hook timeout, and SQLite lock waits are bounded to 0.1 seconds. Observation
-failures never block a prompt, tool, or turn.
+The sole usage observation runs on `PostToolUse`, asynchronously with a
+three-second hook timeout. SQLite lock waits are bounded to 0.1 seconds.
+Observation failures never block a prompt, tool, or turn.
 
-Only allowlisted identifiers, timestamps, enum labels, runtime lifecycle states,
-and canonical local Markdown link targets are stored. The script reads at most
-1 MiB of the event on stdin and never opens `transcript_path`. Raw prompts,
-queries, tool bodies, answer prose, and transcript contents are not retained.
-For a stop event, it extracts existing canonical wiki links from
-`last_assistant_message` and discards the prose. A citation is an observed link,
-not proof that a claim is supported or that an answer was useful.
+Only allowlisted identifiers, timestamps, enum labels, and runtime correlation
+states are stored. The script reads at most 1 MiB of the event on stdin and never
+opens `transcript_path`. Raw prompts, queries, tool bodies, answer prose, and
+transcript contents are not retained. The minimal map does not collect zero-call
+turns, turn completion, answer citations, or subagent lifecycle relationships.
+It therefore cannot measure the fraction of all questions using the wiki.
+Historical observations remain stored; they do not establish current lifecycle
+coverage. The observer retains compatibility with older event payloads without
+registering those events in the bundled maps.
 
 `PostToolUse` links only the six Wiki MCP tools. It validates the returned
 `audit.root`, `audit.event_id`, and `audit.session_id` against the configured root
@@ -72,10 +73,10 @@ attached by task name or approximate timing.
 
 Declare `usage_purpose`, `execution_origin`, and `agent_role` on the MCP call as
 described in [MCP accounting](mcp.md#accounting). An explicit MCP label remains
-authoritative; a hook can fill an unknown label from an explicit runtime or
-verified parent context. Mixed-purpose turns keep the per-event purposes.
-Missing purpose stays `unknown`; prompt text and task-name patterns are not
-classifiers. Parent/child links require actual runtime identifiers. Claude's
+authoritative. Missing purpose stays `unknown`; prompt text and task-name
+patterns are not classifiers. Parent-context correlation from older observations
+is retained for compatibility, but the minimal map supplies no new parent
+lifecycle observations. Claude's
 `prompt_id` serves as the turn ID only when a `turn_id` is absent.
 
 ## Trust and safety

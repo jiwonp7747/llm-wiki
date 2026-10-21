@@ -19,9 +19,19 @@ The command locates the same wiki and invokes the bundled validator with `--json
 
 `stop_validate.py` resolves the plugin root from `PLUGIN_ROOT`, then `CLAUDE_PLUGIN_ROOT`, then the script's own location, so it works under either runtime and when run directly.
 
+## PostToolUse
+
+Each runtime registers exactly one usage handler, matched only to the six Wiki
+MCP tools. It links the returned audit event to chat/turn/tool-call identifiers
+in the local audit database without counting another MCP call. Purpose remains
+declared on each MCP call. This map does not observe prompt submission, turn
+completion, subagents, interruptions, session end, or answer citations. It cannot
+measure all questions or a total-question usage rate. Existing historical
+observations are preserved. See the [usage hook reference](../plugins/llm-wiki/skills/llm-wiki/references/hooks.md).
+
 ## Trust
 
-Both runtimes require review when a non-managed hook is installed or changed. Use `/hooks` in a new session to inspect the exact commands. Both commands run local Python files under the plugin root, make no network calls, and do not modify the wiki.
+Both runtimes require review when a non-managed hook is installed or changed. Use `/hooks` in a new session to inspect the exact commands. All three commands run local Python files under the plugin root, make no network calls, and do not modify the wiki.
 
 ## Why not auto-ingest
 

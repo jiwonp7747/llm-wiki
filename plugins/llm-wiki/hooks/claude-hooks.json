@@ -25,30 +25,6 @@
             "statusMessage": "Checking LLM Wiki structure"
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"${CLAUDE_PLUGIN_ROOT}\" ] || exit 0; python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/wiki_usage.py\" --client claude",
-            "commandWindows": "if not \"%CLAUDE_PLUGIN_ROOT%\"==\"\" py -3 \"%CLAUDE_PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client claude",
-            "timeout": 3,
-            "async": true
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"${CLAUDE_PLUGIN_ROOT}\" ] || exit 0; python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/wiki_usage.py\" --client claude",
-            "commandWindows": "if not \"%CLAUDE_PLUGIN_ROOT%\"==\"\" py -3 \"%CLAUDE_PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client claude",
-            "timeout": 3,
-            "async": true
-          }
-        ]
       }
     ],
     "PostToolUse": [
@@ -63,44 +39,6 @@
           }
         ],
         "matcher": "^mcp__.*__wiki_(info|list|search|read|sources|usage)$"
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"${CLAUDE_PLUGIN_ROOT}\" ] || exit 0; python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/wiki_usage.py\" --client claude",
-            "commandWindows": "if not \"%CLAUDE_PLUGIN_ROOT%\"==\"\" py -3 \"%CLAUDE_PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client claude",
-            "timeout": 3,
-            "async": true
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"${CLAUDE_PLUGIN_ROOT}\" ] || exit 0; python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/wiki_usage.py\" --client claude",
-            "commandWindows": "if not \"%CLAUDE_PLUGIN_ROOT%\"==\"\" py -3 \"%CLAUDE_PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client claude",
-            "timeout": 3,
-            "async": true
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -n \"${CLAUDE_PLUGIN_ROOT}\" ] || exit 0; python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/wiki_usage.py\" --client claude",
-            "commandWindows": "if not \"%CLAUDE_PLUGIN_ROOT%\"==\"\" py -3 \"%CLAUDE_PLUGIN_ROOT%\\hooks\\wiki_usage.py\" --client claude",
-            "timeout": 1
-          }
-        ]
       }
     ]
   }

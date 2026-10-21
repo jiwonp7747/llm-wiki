@@ -75,6 +75,10 @@ class UsageHookTests(unittest.TestCase):
         self.post(tool_input={"usage_purpose": "maintenance", "query": "private query", "token": "secret"})
         self.post(tool_input={"usage_purpose": "maintenance"})
         self.assertEqual(len(self.rows("hook_tools")), 1)
+        self.assertEqual(len(self.rows("events")), 1)
+        self.assertEqual(self.rows("hook_turns")[0]["status"], "observed")
+        self.assertEqual(self.rows("hook_citations"), [])
+        self.assertEqual(self.rows("hook_agents"), [])
         event = self.rows("events")[0]
         self.assertEqual(event["purpose"], "knowledge_lookup")
         self.assertEqual(event["classification_source"], "explicit")
@@ -283,17 +287,20 @@ class UsageHookTests(unittest.TestCase):
             self.assertEqual(hook.main(["--client", "codex"]), 0)
         self.assertEqual(json.loads(output.getvalue()), {"continue": True})
 
-    def test_hook_maps_preserve_existing_hooks_and_only_register_supported_events(self):
+    def test_hook_maps_keep_only_context_validation_and_wiki_tool_correlation(self):
         for filename, client in (("hooks.json", "codex"), ("claude-hooks.json", "claude")):
             hooks = json.loads((PLUGIN / "hooks" / filename).read_text())["hooks"]
+            self.assertEqual(set(hooks), {"SessionStart", "Stop", "PostToolUse"})
+            self.assertEqual(sum(len(entry["hooks"]) for entries in hooks.values() for entry in entries), 3)
             self.assertIn("session_start.py", hooks["SessionStart"][0]["hooks"][0]["command"])
             self.assertIn("stop_validate.py", hooks["Stop"][0]["hooks"][0]["command"])
-            self.assertEqual("Interrupt" in hooks, client == "codex")
-            for event in hook.EVENTS - ({"Interrupt"} if client == "claude" else set()):
-                observation = next(h for entry in hooks[event] for h in entry["hooks"] if "wiki_usage.py" in h["command"])
-                self.assertIn(f"--client {client}", observation["command"])
-                self.assertNotIn("PreToolUse", hooks)
-                self.assertLessEqual(observation["timeout"], 3)
+            usage = hooks["PostToolUse"][0]
+            self.assertEqual(usage["matcher"], r"^mcp__.*__wiki_(info|list|search|read|sources|usage)$")
+            observation = usage["hooks"][0]
+            self.assertIn("wiki_usage.py", observation["command"])
+            self.assertIn(f"--client {client}", observation["command"])
+            self.assertTrue(observation["async"])
+            self.assertLessEqual(observation["timeout"], 3)
 
 
 if __name__ == "__main__":
