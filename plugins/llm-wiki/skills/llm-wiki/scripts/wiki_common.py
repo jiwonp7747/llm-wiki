@@ -263,7 +263,7 @@ def wikilinks(text: str) -> list[str]:
 
 
 def normalize_wikilink(value: str) -> str:
-    target = value.split("|", 1)[0].split("#", 1)[0].strip().replace("\\|", "|")
+    target = value.replace("\\|", "|").split("|", 1)[0].split("#", 1)[0].strip()
     return target[:-3] if target.endswith(".md") else target
 
 

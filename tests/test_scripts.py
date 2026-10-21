@@ -47,6 +47,20 @@ class WikiScriptTests(unittest.TestCase):
         self.assertEqual(result["page_count"], 2)
         self.assertEqual(result["source_count"], 0)
 
+    def test_escaped_alias_pipe_in_table_resolves_wikilink(self) -> None:
+        self.initialize()
+        page = self.write_page("concepts/table.md", "")
+        page.write_text(
+            page.read_text(encoding="utf-8") + "\n| Link |\n| --- |\n| [[overview\\|Overview]] |\n",
+            encoding="utf-8",
+        )
+        result = self.validate()
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertFalse(
+            any("unresolved wikilink '[[overview\\|Overview]]'" in warning for warning in result["warnings"]),
+            result["warnings"],
+        )
+
     def test_intake_is_deduplicated_and_hash_protected(self) -> None:
         self.initialize()
         source = self.project / "architecture.txt"
