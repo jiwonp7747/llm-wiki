@@ -10,7 +10,7 @@
     {
       "name": "llm-wiki",
       "description": "Initialize and maintain a persistent, source-backed Markdown wiki with repeatable ingest, query, indexing, logging, and lint workflows.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "jiwonp7747",
         "url": "https://github.com/jiwonp7747"
