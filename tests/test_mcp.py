@@ -273,6 +273,22 @@ class WikiMCPTests(unittest.TestCase):
                     self.assertEqual(result.structuredContent['root'], str(self.root.resolve()))
         asyncio.run(exercise())
 
+    def test_server_stays_connected_without_project_wiki(self):
+        async def exercise():
+            empty = self.project / 'no-wiki'
+            empty.mkdir()
+            (empty / '.git').mkdir()
+            env = {key: value for key, value in os.environ.items() if key != 'LLM_WIKI_ROOT'}
+            parameters = StdioServerParameters(command=sys.executable, args=[str(PLUGIN / 'mcp/server.py')],
+                                               cwd=str(empty), env=env)
+            async with stdio_client(parameters) as (read, write):
+                async with ClientSession(read, write) as client:
+                    await client.initialize()
+                    result = await client.call_tool('wiki_info', {})
+                    self.assertTrue(result.isError)
+                    self.assertIn('No initialized knowledge/', result.content[0].text)
+        asyncio.run(exercise())
+
     def test_real_stdio_mcp_schema_errors_and_calls(self):
         async def exercise():
             parameters = StdioServerParameters(command=sys.executable, args=[str(PLUGIN / 'mcp/server.py'),

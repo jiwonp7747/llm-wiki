@@ -120,6 +120,16 @@ def create_server(service: WikiService) -> FastMCP:
     return mcp
 
 
+class NoWikiService:
+    """Keeps the server connected in projects without a wiki; every call reports why."""
+
+    def __init__(self, reason: str):
+        self.reason = reason
+
+    def call(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        raise ValueError(self.reason)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=os.environ.get("LLM_WIKI_ROOT"))
@@ -132,9 +142,13 @@ def main() -> None:
     parser.add_argument("--agent-role", default=os.environ.get("LLM_WIKI_AGENT_ROLE"),
                         choices=("root", "subagent", "unknown"))
     args = parser.parse_args()
-    root = Path(args.root) if args.root else discover_root(Path.cwd())
-    service = WikiService(root, Path(args.audit_db) if args.audit_db else None, args.task_id,
-                          args.usage_purpose, args.execution_origin, args.agent_role)
+    try:
+        root = Path(args.root) if args.root else discover_root(Path.cwd())
+    except ValueError as error:
+        service: WikiService | NoWikiService = NoWikiService(f"{error} (cwd: {Path.cwd()})")
+    else:
+        service = WikiService(root, Path(args.audit_db) if args.audit_db else None, args.task_id,
+                              args.usage_purpose, args.execution_origin, args.agent_role)
     create_server(service).run(transport="stdio")
 
 
