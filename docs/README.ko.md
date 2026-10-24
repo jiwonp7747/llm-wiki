@@ -56,7 +56,7 @@ $llm-wiki로 위키의 모순과 오래된 내용을 검사해줘.
 
 ## 읽기 전용 MCP
 
-`wiki_info`, `wiki_list`, `wiki_search`, `wiki_read`, `wiki_sources`, `wiki_usage`를 제공합니다. 기존 원본 등록·인덱스·검증 스크립트는 유지합니다. `uv`와 Python 3.10 이상이 필요하며 첫 실행 때 잠긴 의존성을 설치합니다. Codex와 Claude Code의 연결 설정은 각 런타임의 플러그인 경로 변수를 사용하고 서버 코드는 공유합니다. 업데이트 설치 후 새 세션에서 도구를 확인합니다.
+`wiki_catalog`, `wiki_info`, `wiki_list`, `wiki_search`, `wiki_read`, `wiki_sources`, `wiki_usage`를 제공합니다. 기본 위키는 작업 디렉터리 기준이며, `~/.config/llm-wiki/wikis.json`에 등록한 다른 위키는 각 도구의 `wiki` 인자에 이름을 넘겨 조회합니다. 기존 원본 등록·인덱스·검증 스크립트는 유지합니다. `uv`와 Python 3.10 이상이 필요하며 첫 실행 때 잠긴 의존성을 설치합니다. Codex와 Claude Code의 연결 설정은 각 런타임의 플러그인 경로 변수를 사용하고 서버 코드는 공유합니다. 업데이트 설치 후 새 세션에서 도구를 확인합니다.
 
 서버는 `knowledge/` 파일을 수정하지 않습니다. 현재 작업 디렉터리부터 가장 가까운 Git 루트까지 위키를 찾으며, 필요하면 `LLM_WIKI_ROOT` 또는 `--root`로 고정합니다. 초기화 전에는 MCP 서버가 시작되지 않으므로 기존 skill로 위키를 초기화한 뒤 재연결합니다.
 

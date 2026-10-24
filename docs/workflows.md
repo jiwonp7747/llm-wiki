@@ -21,7 +21,7 @@ Registration does not imply that claims are true. A source can be inaccurate, di
 
 ## Query
 
-Queries route through `wiki/index.md`. The LLM reads canonical pages first and checks source notes or originals for high-stakes or disputed claims. Answers should reference page paths and source IDs. Durable comparisons or conclusions can be written back; routine chat should not become wiki noise.
+Queries route through `wiki/overview.md` and the relevant MOC; the full `wiki/index.md` serves listings and traceability. The LLM reads canonical pages first and checks source notes or originals for high-stakes or disputed claims. Answers should reference page paths and source IDs. Durable comparisons or conclusions can be written back; routine chat should not become wiki noise.
 
 ## Lint
 

@@ -100,6 +100,10 @@ class PurposeTests(unittest.TestCase):
             tools = await create_server(self.service).list_tools()
             for tool in tools:
                 props = tool.inputSchema["properties"]
+                if tool.name == "wiki_catalog":
+                    self.assertEqual(props, {})
+                    continue
+                self.assertIn("wiki", props, tool.name)
                 self.assertIn("usage_purpose", props, tool.name)
                 self.assertIn("execution_origin", props, tool.name)
                 self.assertIn("agent_role", props, tool.name)

@@ -289,6 +289,64 @@ class WikiMCPTests(unittest.TestCase):
                     self.assertIn('No initialized knowledge/', result.content[0].text)
         asyncio.run(exercise())
 
+    def test_registered_wikis_are_listed_and_selected_by_name(self):
+        other = Path(self.temp.name) / 'other/knowledge'
+        subprocess.run([sys.executable, str(SCRIPTS / 'init_wiki.py'), '--root', str(other)],
+                       check=True, capture_output=True)
+        (other / 'wiki/concepts/only-other.md').write_text(
+            '---\nid: only-other\ntype: concept\nstatus: canonical\nsources: []\n---\n# Other\nzeta marker\n',
+            encoding='utf-8')
+        registry = Path(self.temp.name) / 'wikis.json'
+        registry.write_text(json.dumps({'wikis': [
+            {'name': 'main', 'root': str(self.root), 'description': 'test main'},
+            {'name': 'other', 'root': str(other), 'description': 'test other'}]}), encoding='utf-8')
+        empty = self.project / 'no-wiki'
+        empty.mkdir()
+        (empty / '.git').mkdir()
+        env = {key: value for key, value in os.environ.items() if key != 'LLM_WIKI_ROOT'}
+        env.update({'LLM_WIKI_REGISTRY': str(registry), 'XDG_STATE_HOME': str(self.project / 'state')})
+
+        async def exercise(cwd):
+            parameters = StdioServerParameters(command=sys.executable, args=[str(PLUGIN / 'mcp/server.py')],
+                                               cwd=str(cwd), env=env)
+            async with stdio_client(parameters) as (read, write):
+                async with ClientSession(read, write) as client:
+                    init = await client.initialize()
+                    catalog = (await client.call_tool('wiki_catalog', {})).structuredContent
+                    info = await client.call_tool('wiki_info', {})
+                    other_info = await client.call_tool('wiki_info', {'wiki': 'other'})
+                    hit = await client.call_tool('wiki_search', {'query': 'zeta marker', 'wiki': 'other'})
+                    raw_path = await client.call_tool('wiki_info', {'wiki': '../other/knowledge'})
+                    return init.instructions, catalog, info, other_info, hit, raw_path
+
+        instructions, catalog, info, other_info, hit, raw_path = asyncio.run(exercise(empty))
+        self.assertIn('wiki/overview.md', instructions)
+        self.assertNotIn('wiki_read for SCHEMA.md and wiki/index.md', instructions)
+        self.assertEqual([(w['name'], w['default']) for w in catalog['wikis']], [('main', False), ('other', False)])
+        self.assertTrue(info.isError)
+        self.assertIn('main, other', info.content[0].text)
+        self.assertFalse(other_info.isError)
+        self.assertEqual(other_info.structuredContent['root'], str(other.resolve()))
+        self.assertEqual(other_info.structuredContent['overview'], 'wiki/overview.md')
+        self.assertEqual(hit.structuredContent['matches'][0]['path'], 'wiki/concepts/only-other.md')
+        self.assertTrue(raw_path.isError)
+        self.assertIn('Unknown wiki', raw_path.content[0].text)
+
+        _, catalog, info, _, _, _ = asyncio.run(exercise(self.project))
+        self.assertEqual([(w['name'], w['default']) for w in catalog['wikis']], [('main', True), ('other', False)])
+        self.assertEqual(info.structuredContent['root'], str(self.root.resolve()))
+
+    def test_registry_rejects_relative_roots_and_duplicate_names(self):
+        from wiki_service import load_registry
+        registry = Path(self.temp.name) / 'bad.json'
+        for wikis in ([{'name': 'a', 'root': 'relative/knowledge'}],
+                      [{'name': 'a', 'root': str(self.root)}, {'name': 'a', 'root': str(self.root)}],
+                      [{'name': 'Bad Name', 'root': str(self.root)}]):
+            registry.write_text(json.dumps({'wikis': wikis}), encoding='utf-8')
+            with self.assertRaises(ValueError):
+                load_registry(registry)
+        self.assertEqual(load_registry(Path(self.temp.name) / 'missing.json'), [])
+
     def test_real_stdio_mcp_schema_errors_and_calls(self):
         async def exercise():
             parameters = StdioServerParameters(command=sys.executable, args=[str(PLUGIN / 'mcp/server.py'),
@@ -297,7 +355,7 @@ class WikiMCPTests(unittest.TestCase):
                 async with ClientSession(read, write) as client:
                     await client.initialize()
                     tools = (await client.list_tools()).tools
-                    self.assertEqual({t.name for t in tools}, {'wiki_info','wiki_list','wiki_search','wiki_read','wiki_sources','wiki_usage'})
+                    self.assertEqual({t.name for t in tools}, {'wiki_catalog','wiki_info','wiki_list','wiki_search','wiki_read','wiki_sources','wiki_usage'})
                     for tool in tools:
                         self.assertTrue(tool.annotations.readOnlyHint)
                     for name, args in [('wiki_info', {}), ('wiki_list', {}), ('wiki_search', {'query':'alpha'}),

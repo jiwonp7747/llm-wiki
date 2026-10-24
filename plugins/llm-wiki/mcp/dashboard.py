@@ -159,7 +159,9 @@ def turn_stats(service, db, query, where, values):
 def create_app(service: WikiService):
     @asynccontextmanager
     async def lifespan(app):
-        app.state.tools = [t.model_dump() for t in await create_server(service).list_tools()]
+        # wiki_catalog is not recorded in usage accounting, so it has no usage row to show.
+        app.state.tools = [t.model_dump() for t in await create_server(service).list_tools()
+                           if t.name != 'wiki_catalog']
         yield
 
     def api(request):

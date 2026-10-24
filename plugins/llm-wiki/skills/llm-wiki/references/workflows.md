@@ -20,7 +20,7 @@
 
 ## Query
 
-1. Read `wiki/index.md` first.
+1. Start from `wiki/overview.md` and the relevant MOC, then narrow candidates by type, tag and path. Open `wiki/index.md` only for full listings or traceability.
 2. Read relevant canonical pages, then their source notes or originals when verification matters.
 3. Answer with wiki page and source references.
 4. Save durable new synthesis only when requested or when it materially improves the wiki; log saved queries.

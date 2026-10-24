@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -35,6 +36,38 @@ def discover_root(start: Path) -> Path:
         if (directory / ".git").exists():
             break
     raise ValueError("No initialized knowledge/ found; set LLM_WIKI_ROOT or --root")
+
+
+WIKI_NAME = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
+
+
+def registry_path() -> Path:
+    return Path(os.environ.get("LLM_WIKI_REGISTRY", str(Path.home() / ".config/llm-wiki/wikis.json"))).expanduser()
+
+
+def load_registry(path: Path | None = None) -> list[dict[str, Any]]:
+    """Read the user-maintained wiki list: {"wikis": [{"name", "root", "description"}]}."""
+    path = path or registry_path()
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Unreadable wiki registry {path}: {exc}") from exc
+    items = data.get("wikis") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        raise ValueError(f"Wiki registry {path} needs a 'wikis' list")
+    entries, names = [], set()
+    for item in items:
+        name, root = (item.get("name"), item.get("root")) if isinstance(item, dict) else (None, None)
+        if not isinstance(name, str) or not WIKI_NAME.fullmatch(name) or name in names:
+            raise ValueError(f"Wiki registry {path}: names must be unique lowercase [a-z0-9_-], got {name!r}")
+        if not isinstance(root, str) or not Path(root).expanduser().is_absolute():
+            raise ValueError(f"Wiki registry {path}: '{name}' needs an absolute root")
+        names.add(name)
+        entries.append({"name": name, "root": Path(root).expanduser().resolve(),
+                        "description": str(item.get("description", ""))[:300]})
+    return entries
 
 
 class WikiService:
@@ -180,6 +213,9 @@ class WikiService:
     def wiki_info(self) -> dict:
         return {
             "root": str(self.root), "schema": "SCHEMA.md", "index": "wiki/index.md",
+            "overview": "wiki/overview.md" if (self.root / "wiki/overview.md").is_file() else None,
+            "routing": ("Start from overview and the relevant MOC, narrow with wiki_list/wiki_search, then read "
+                        "canonical pages. index is the full catalog for listings and traceability, not a routine entry."),
             "tag_policy": TAG_POLICY_FILE if (self.root / TAG_POLICY_FILE).is_file() else None,
             "categories": sorted(p.name for p in (self.root / "wiki").iterdir()
                                  if p.is_dir() and not p.is_symlink()),
